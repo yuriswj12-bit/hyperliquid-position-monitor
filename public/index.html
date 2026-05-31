@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hyperliquid Position Monitor</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Hyperliquid</p>
+          <h1>Position Monitor</h1>
+        </div>
+        <div class="status-pill" id="connectionStatus">Idle</div>
+      </header>
+
+      <section class="control-panel" aria-label="Monitor controls">
+        <label class="field wallet-field">
+          <span>Wallet</span>
+          <input id="walletInput" autocomplete="off" spellcheck="false" placeholder="0x..." />
+        </label>
+        <label class="field">
+          <span>Endpoint</span>
+          <input id="endpointInput" autocomplete="off" spellcheck="false" value="https://api.hyperliquid.xyz/info" />
+        </label>
+        <label class="field compact">
+          <span>Refresh</span>
+          <select id="refreshInput">
+            <option value="10000">10s</option>
+            <option value="15000" selected>15s</option>
+            <option value="30000">30s</option>
+            <option value="60000">60s</option>
+          </select>
+        </label>
+        <label class="field compact">
+          <span>Risk Alert</span>
+          <input id="riskInput" type="number" min="1" max="80" value="12" />
+        </label>
+        <button id="startButton" class="primary-button" type="button">Start</button>
+      </section>
+
+      <section class="summary-grid" aria-label="Account summary">
+        <article class="metric">
+          <span>Account Value</span>
+          <strong id="accountValue">$0.00</strong>
+        </article>
+        <article class="metric">
+          <span>Total Position Value</span>
+          <strong id="positionValue">$0.00</strong>
+        </article>
+        <article class="metric">
+          <span>Margin Used</span>
+          <strong id="marginUsed">$0.00</strong>
+        </article>
+        <article class="metric">
+          <span>Unrealized PnL</span>
+          <strong id="unrealizedPnl">$0.00</strong>
+        </article>
+        <article class="metric">
+          <span>Withdrawable</span>
+          <strong id="withdrawable">$0.00</strong>
+        </article>
+        <article class="metric">
+          <span>Positions</span>
+          <strong id="positionCount">0</strong>
+        </article>
+      </section>
+
+      <section class="workspace">
+        <section class="panel positions-panel">
+          <div class="panel-head">
+            <h2>Open Positions</h2>
+            <span id="lastUpdated">Never updated</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Coin</th>
+                  <th>Side</th>
+                  <th>Size</th>
+                  <th>Entry</th>
+                  <th>Value</th>
+                  <th>PnL</th>
+                  <th>ROE</th>
+                  <th>Liq. Px</th>
+                  <th>Liq. Dist.</th>
+                </tr>
+              </thead>
+              <tbody id="positionsBody">
+                <tr>
+                  <td colspan="9" class="empty-cell">Enter a wallet address to start monitoring.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <aside class="panel alerts-panel">
+          <div class="panel-head">
+            <h2>Risk Alerts</h2>
+          </div>
+          <div id="alertsList" class="alerts-list">
+            <div class="quiet">No active alerts.</div>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <script src="./app.js?v=20260531"></script>
+  </body>
+</html>

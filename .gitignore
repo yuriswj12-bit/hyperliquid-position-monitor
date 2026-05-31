@@ -1,17 +1,11 @@
-# Python
+.env
+.venv/
 __pycache__/
 *.py[cod]
-.env
-
-# Virtual env
-venv/
-.venv/
-
-# IDE
-.idea/
-.vscode/
-
-# Data
-*.db
-*.log
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 data/
+*.db
+node_modules/
+dist/
