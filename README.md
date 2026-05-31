@@ -20,16 +20,8 @@
 - Docker 一键部署
 
 ## 项目结构
-hyperliquid-position-monitor/
-├── config/           # 配置文件
-├── core/             # 核心逻辑（监控、检测、状态管理）
-├── storage/          # 数据存储（SQLite）
-├── alerting/         # 告警模块（Telegram）
-├── docs/
-│   └── PRODUCT_SPEC.md   # 完整产品方案文档
-├── main.py
-├── requirements.txt
-└── README.md
+<img width="1263" height="588" alt="image" src="https://github.com/user-attachments/assets/0e27b8f6-8332-41fc-aece-56f49416ab84" />
+
 
 ## 快速开始
 
