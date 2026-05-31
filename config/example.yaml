@@ -1,0 +1,16 @@
+# Hyperdress.AI 配置示例
+
+poll_interval_seconds: 25
+min_notional_usd_large: 1000000
+
+watched_coins:
+  - HYPE
+
+addresses:
+  - address: "0xYourAddressHere"
+    label: "重点空头-1"
+
+telegram:
+  enabled: true
+  bot_token: "YOUR_BOT_TOKEN"
+  chat_id: "YOUR_CHAT_ID"
