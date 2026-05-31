@@ -11,7 +11,7 @@ from app.config import get_settings
 from app.hyperliquid import HyperliquidClient
 from app.models import HyperliquidStateRequest
 from app.notifier import TelegramNotifier
-from app.risk import liquidation_alerts, normalize_snapshot
+from app.risk import liquidation_alerts, normalize_snapshot, position_changes
 from app.storage import Storage
 
 settings = get_settings()
@@ -21,16 +21,33 @@ notifier = TelegramNotifier(settings)
 PUBLIC_DIR = Path("public").resolve()
 
 
+async def process_wallet_state(user: str, endpoint: str | None = None, dex: str | None = None) -> dict:
+    raw = await client.clearinghouse_state(user, endpoint, dex)
+    previous = await storage.latest_snapshot(user, settings.liquidation_alert_percent)
+    snapshot = normalize_snapshot(user, raw, settings.liquidation_alert_percent)
+    changes = position_changes(previous, snapshot, settings.position_change_alert_percent)
+    alerts = await storage.filter_alerts_for_cooldown(
+        liquidation_alerts(snapshot),
+        settings.alert_cooldown_seconds,
+    )
+
+    await storage.save_snapshot(snapshot)
+    await storage.save_position_changes(changes)
+    await storage.save_alerts(alerts)
+    await notifier.send_alerts(alerts)
+
+    return {
+        "snapshot": snapshot.model_dump(mode="json"),
+        "changes": [change.model_dump(mode="json") for change in changes],
+        "alerts": [alert.model_dump(mode="json") for alert in alerts],
+    }
+
+
 async def monitor_loop() -> None:
     while True:
         for wallet in settings.watched_wallets:
             try:
-                raw = await client.clearinghouse_state(wallet)
-                snapshot = normalize_snapshot(wallet, raw, settings.liquidation_alert_percent)
-                alerts = liquidation_alerts(snapshot)
-                await storage.save_snapshot(snapshot)
-                await storage.save_alerts(alerts)
-                await notifier.send_alerts(alerts)
+                await process_wallet_state(wallet)
             except Exception as error:
                 print(f"monitor error for {wallet}: {error}")
         await asyncio.sleep(settings.monitor_interval_seconds)
@@ -71,13 +88,7 @@ async def info_proxy(request: HyperliquidStateRequest) -> dict:
 @app.post("/api/state")
 async def state(request: HyperliquidStateRequest) -> dict:
     try:
-        raw = await client.clearinghouse_state(request.user, request.endpoint, request.dex)
-        snapshot = normalize_snapshot(request.user, raw, settings.liquidation_alert_percent)
-        alerts = liquidation_alerts(snapshot)
-        await storage.save_snapshot(snapshot)
-        await storage.save_alerts(alerts)
-        await notifier.send_alerts(alerts)
-        return snapshot.model_dump(mode="json")
+        return await process_wallet_state(request.user, request.endpoint, request.dex)
     except Exception as error:
         raise HTTPException(status_code=502, detail=str(error)) from error
 
@@ -85,6 +96,11 @@ async def state(request: HyperliquidStateRequest) -> dict:
 @app.get("/api/alerts")
 async def alerts(limit: int = 50) -> list[dict]:
     return await storage.recent_alerts(limit)
+
+
+@app.get("/api/position-changes")
+async def changes(limit: int = 50) -> list[dict]:
+    return await storage.recent_position_changes(limit)
 
 
 app.mount("/assets", StaticFiles(directory="public"), name="assets")
