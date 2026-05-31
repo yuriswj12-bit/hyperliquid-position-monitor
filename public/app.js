@@ -22,6 +22,7 @@ const els = {
   lastUpdated: document.querySelector("#lastUpdated"),
   positionsBody: document.querySelector("#positionsBody"),
   alertsList: document.querySelector("#alertsList"),
+  changesList: document.querySelector("#changesList"),
 };
 
 function toNumber(value) {
@@ -67,10 +68,10 @@ function normalizedEndpoint() {
 async function fetchPositionState() {
   const user = els.wallet.value.trim();
   if (!validateWallet(user)) {
-    throw new Error("请输入有效的 0x 钱包地址");
+    throw new Error("Enter a valid 0x wallet address");
   }
 
-  const response = await fetch("/api/info", {
+  const response = await fetch("/api/state", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
@@ -164,9 +165,29 @@ function renderAlerts(assetPositions, threshold) {
     .join("");
 }
 
+function renderChanges(changes) {
+  if (!Array.isArray(changes) || !changes.length) {
+    els.changesList.innerHTML = '<div class="quiet">No position changes yet.</div>';
+    return;
+  }
+
+  els.changesList.innerHTML = changes
+    .map((change) => {
+      const changePercent = change.change_percent === null || change.change_percent === undefined ? "" : ` (${percent(change.change_percent)})`;
+      return `
+        <div class="change-item">
+          <strong>${change.coin} ${change.change_type}${changePercent}</strong>
+          <span>${compact(change.previous_size)} -> ${compact(change.current_size)}</span>
+        </div>
+      `;
+    })
+    .join("");
+}
+
 function render(payload) {
-  const positions = Array.isArray(payload.assetPositions) ? payload.assetPositions : [];
-  const marginSummary = payload.marginSummary || {};
+  const raw = payload.snapshot?.raw || payload;
+  const positions = Array.isArray(raw.assetPositions) ? raw.assetPositions : [];
+  const marginSummary = raw.marginSummary || {};
   const threshold = Math.max(1, Number(els.risk.value) || 12);
   const totalPnl = positions.reduce((sum, item) => sum + toNumber(item.position?.unrealizedPnl), 0);
   state.lastPositions = positions;
@@ -176,11 +197,12 @@ function render(payload) {
   els.marginUsed.textContent = money(marginSummary.totalMarginUsed);
   els.unrealizedPnl.textContent = money(totalPnl);
   els.unrealizedPnl.className = signedClass(totalPnl);
-  els.withdrawable.textContent = money(payload.withdrawable);
+  els.withdrawable.textContent = money(raw.withdrawable);
   els.positionCount.textContent = String(positions.length);
   els.positionsBody.innerHTML = positionRows(positions, threshold);
   els.lastUpdated.textContent = `Updated ${new Date().toLocaleTimeString()}`;
   renderAlerts(positions, threshold);
+  renderChanges(payload.changes);
 }
 
 async function refreshNow() {
@@ -212,7 +234,7 @@ function startMonitor() {
 
   if (!validateWallet(els.wallet.value.trim())) {
     setStatus("Error", "error");
-    els.alertsList.innerHTML = '<div class="alert-item"><strong>Request failed</strong><span>请输入有效的 0x 钱包地址</span></div>';
+    els.alertsList.innerHTML = '<div class="alert-item"><strong>Request failed</strong><span>Enter a valid 0x wallet address</span></div>';
     return;
   }
 
