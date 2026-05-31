@@ -3,7 +3,10 @@ from pathlib import Path
 
 import aiosqlite
 
-from app.models import AccountSnapshot, AlertEvent
+from datetime import datetime, timezone
+
+from app.models import AccountSnapshot, AlertEvent, PositionChange
+from app.risk import normalize_snapshot
 
 
 class Storage:
@@ -36,11 +39,46 @@ class Storage:
                     coin text not null,
                     severity text not null,
                     message text not null,
+                    created_at text not null,
+                    fingerprint text not null
+                )
+                """
+            )
+            await self._ensure_column(db, "alerts", "fingerprint", "text")
+            await db.execute("create index if not exists idx_snapshots_user_id on snapshots (user, id)")
+            await db.execute("create index if not exists idx_alerts_fingerprint_id on alerts (fingerprint, id)")
+            await db.execute(
+                """
+                create table if not exists position_changes (
+                    id integer primary key autoincrement,
+                    user text not null,
+                    coin text not null,
+                    change_type text not null,
+                    previous_size real not null,
+                    current_size real not null,
+                    previous_value real not null,
+                    current_value real not null,
+                    change_percent real,
+                    message text not null,
                     created_at text not null
                 )
                 """
             )
+            await db.execute(
+                """
+                create table if not exists alert_fingerprints (
+                    fingerprint text primary key,
+                    last_sent_at text not null
+                )
+                """
+            )
             await db.commit()
+
+    async def _ensure_column(self, db: aiosqlite.Connection, table: str, column: str, definition: str) -> None:
+        cursor = await db.execute(f"pragma table_info({table})")
+        rows = await cursor.fetchall()
+        if column not in {row[1] for row in rows}:
+            await db.execute(f"alter table {table} add column {column} {definition}")
 
     async def save_snapshot(self, snapshot: AccountSnapshot) -> None:
         async with aiosqlite.connect(self.database_path) as db:
@@ -70,10 +108,28 @@ class Storage:
         async with aiosqlite.connect(self.database_path) as db:
             await db.executemany(
                 """
-                insert into alerts (user, coin, severity, message, created_at)
-                values (?, ?, ?, ?, ?)
+                insert into alerts (user, coin, severity, message, created_at, fingerprint)
+                values (?, ?, ?, ?, ?, ?)
                 """,
-                [(event.user, event.coin, event.severity, event.message, event.created_at.isoformat()) for event in events],
+                [
+                    (
+                        event.user,
+                        event.coin,
+                        event.severity,
+                        event.message,
+                        event.created_at.isoformat(),
+                        event.fingerprint,
+                    )
+                    for event in events
+                ],
+            )
+            await db.executemany(
+                """
+                insert into alert_fingerprints (fingerprint, last_sent_at)
+                values (?, ?)
+                on conflict(fingerprint) do update set last_sent_at = excluded.last_sent_at
+                """,
+                [(event.fingerprint, event.created_at.isoformat()) for event in events],
             )
             await db.commit()
 
@@ -82,7 +138,7 @@ class Storage:
             db.row_factory = aiosqlite.Row
             cursor = await db.execute(
                 """
-                select user, coin, severity, message, created_at
+                select user, coin, severity, message, created_at, fingerprint
                 from alerts
                 order by id desc
                 limit ?
@@ -91,3 +147,95 @@ class Storage:
             )
             rows = await cursor.fetchall()
             return [dict(row) for row in rows]
+
+    async def latest_snapshot(self, user: str, liquidation_threshold: float) -> AccountSnapshot | None:
+        async with aiosqlite.connect(self.database_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                """
+                select raw_json
+                from snapshots
+                where user = ?
+                order by id desc
+                limit 1
+                """,
+                (user,),
+            )
+            row = await cursor.fetchone()
+            if row is None:
+                return None
+            return normalize_snapshot(user, json.loads(row["raw_json"]), liquidation_threshold)
+
+    async def save_position_changes(self, changes: list[PositionChange]) -> None:
+        if not changes:
+            return
+        async with aiosqlite.connect(self.database_path) as db:
+            await db.executemany(
+                """
+                insert into position_changes (
+                    user, coin, change_type, previous_size, current_size,
+                    previous_value, current_value, change_percent, message, created_at
+                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        change.user,
+                        change.coin,
+                        change.change_type,
+                        change.previous_size,
+                        change.current_size,
+                        change.previous_value,
+                        change.current_value,
+                        change.change_percent,
+                        change.message,
+                        change.created_at.isoformat(),
+                    )
+                    for change in changes
+                ],
+            )
+            await db.commit()
+
+    async def recent_position_changes(self, limit: int = 50) -> list[dict]:
+        async with aiosqlite.connect(self.database_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                """
+                select user, coin, change_type, previous_size, current_size,
+                       previous_value, current_value, change_percent, message, created_at
+                from position_changes
+                order by id desc
+                limit ?
+                """,
+                (limit,),
+            )
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+
+    async def filter_alerts_for_cooldown(
+        self,
+        events: list[AlertEvent],
+        cooldown_seconds: int,
+    ) -> list[AlertEvent]:
+        if not events or cooldown_seconds <= 0:
+            return events
+
+        now = datetime.now(timezone.utc)
+        allowed: list[AlertEvent] = []
+        async with aiosqlite.connect(self.database_path) as db:
+            for event in events:
+                cursor = await db.execute(
+                    """
+                    select last_sent_at
+                    from alert_fingerprints
+                    where fingerprint = ?
+                    """,
+                    (event.fingerprint,),
+                )
+                row = await cursor.fetchone()
+                if row is None:
+                    allowed.append(event)
+                    continue
+                last_sent = datetime.fromisoformat(row[0])
+                if (now - last_sent).total_seconds() >= cooldown_seconds:
+                    allowed.append(event)
+        return allowed
