@@ -285,8 +285,13 @@ td {
   color: var(--good);
 }
 
-.alerts-panel {
+.alerts-panel,
+.changes-panel {
   align-self: start;
+}
+
+.changes-panel {
+  grid-column: 2;
 }
 
 .alerts-list {
@@ -302,12 +307,21 @@ td {
   padding: 12px;
 }
 
-.alert-item strong {
+.change-item {
+  border: 1px solid rgba(15, 118, 110, 0.22);
+  border-radius: 8px;
+  background: #f0faf8;
+  padding: 12px;
+}
+
+.alert-item strong,
+.change-item strong {
   display: block;
   margin-bottom: 4px;
 }
 
 .alert-item span,
+.change-item span,
 .quiet,
 .empty-cell {
   color: var(--muted);
@@ -329,6 +343,10 @@ td {
 
   .workspace {
     grid-template-columns: 1fr;
+  }
+
+  .changes-panel {
+    grid-column: auto;
   }
 }
 
