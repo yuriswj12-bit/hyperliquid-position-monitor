@@ -24,6 +24,14 @@ Hyperdress.AI 的 MVP 目标是稳定监控 Hyperliquid 上的一组重点地址
 - 计算每个仓位距离强平价的百分比
 - 根据 `LIQUIDATION_ALERT_PERCENT` 标记 `critical` 与 `warning`
 - 保存告警事件，避免风险信息只停留在前端
+- 使用 `ALERT_COOLDOWN_SECONDS` 对相同钱包、币种、严重级别的告警做冷却去重
+
+### 仓位变化
+
+- 对比同一地址的上一条快照与当前快照
+- 识别 `opened`、`closed`、`flipped`、`increased`、`reduced`
+- 使用 `POSITION_CHANGE_ALERT_PERCENT` 控制加仓/减仓的触发阈值
+- 将变化事件保存到 SQLite，供后续 Telegram 查询和 AI 分析使用
 
 ### Web 面板
 
@@ -63,6 +71,19 @@ Hyperdress.AI 的 MVP 目标是稳定监控 Hyperliquid 上的一组重点地址
 - `user`
 - `coin`
 - `severity`
+- `message`
+- `created_at`
+
+### Position Change
+
+- `user`
+- `coin`
+- `change_type`
+- `previous_size`
+- `current_size`
+- `previous_value`
+- `current_value`
+- `change_percent`
 - `message`
 - `created_at`
 
