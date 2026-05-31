@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Any
 
-from app.models import AccountSnapshot, AlertEvent, PositionRisk
+from app.models import AccountSnapshot, AlertEvent, PositionChange, PositionRisk
 
 
 def _number(value: Any) -> float:
@@ -91,6 +91,73 @@ def liquidation_alerts(snapshot: AccountSnapshot) -> list[AlertEvent]:
                 severity=position.severity,
                 message=f"{position.coin} {position.side} is {distance_text} from liquidation.",
                 created_at=snapshot.captured_at,
+                fingerprint=f"liquidation:{snapshot.user}:{position.coin}:{position.severity}",
             )
         )
     return events
+
+
+def _position_index(snapshot: AccountSnapshot) -> dict[str, PositionRisk]:
+    return {position.coin: position for position in snapshot.positions if abs(position.size) > 0}
+
+
+def _change_percent(previous: float, current: float) -> float | None:
+    previous_abs = abs(previous)
+    if previous_abs == 0:
+        return None
+    return ((abs(current) - previous_abs) / previous_abs) * 100
+
+
+def position_changes(
+    previous: AccountSnapshot | None,
+    current: AccountSnapshot,
+    threshold_percent: float,
+) -> list[PositionChange]:
+    if previous is None:
+        return []
+
+    changes: list[PositionChange] = []
+    previous_positions = _position_index(previous)
+    current_positions = _position_index(current)
+    coins = sorted(set(previous_positions) | set(current_positions))
+
+    for coin in coins:
+        old = previous_positions.get(coin)
+        new = current_positions.get(coin)
+        old_size = old.size if old else 0.0
+        new_size = new.size if new else 0.0
+        old_value = old.position_value if old else 0.0
+        new_value = new.position_value if new else 0.0
+        change_percent = _change_percent(old_size, new_size)
+        change_type: str | None = None
+
+        if old is None and new is not None:
+            change_type = "opened"
+        elif old is not None and new is None:
+            change_type = "closed"
+        elif old is not None and new is not None and old_size * new_size < 0:
+            change_type = "flipped"
+        elif change_percent is not None and change_percent >= threshold_percent:
+            change_type = "increased"
+        elif change_percent is not None and change_percent <= -threshold_percent:
+            change_type = "reduced"
+
+        if not change_type:
+            continue
+
+        changes.append(
+            PositionChange(
+                user=current.user,
+                coin=coin,
+                change_type=change_type,
+                previous_size=old_size,
+                current_size=new_size,
+                previous_value=old_value,
+                current_value=new_value,
+                change_percent=change_percent,
+                message=f"{coin} position {change_type}: {old_size:g} -> {new_size:g}.",
+                created_at=current.captured_at,
+            )
+        )
+
+    return changes
