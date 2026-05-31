@@ -44,3 +44,17 @@ class AlertEvent(BaseModel):
     severity: str
     message: str
     created_at: datetime
+    fingerprint: str
+
+
+class PositionChange(BaseModel):
+    user: str
+    coin: str
+    change_type: str
+    previous_size: float
+    current_size: float
+    previous_value: float
+    current_value: float
+    change_percent: float | None
+    message: str
+    created_at: datetime
