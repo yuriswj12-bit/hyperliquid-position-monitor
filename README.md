@@ -9,6 +9,8 @@ Hyperdress.AI 是一个面向 Hyperliquid 的异常地址监控工具，核心�
 - 风险阈值配置与强平距离告警
 - FastAPI 后端代理 Hyperliquid Info API，避免浏览器 CORS 问题
 - SQLite 保存仓位快照与告警事件
+- 仓位变化 diff：新开、加仓、减仓、平仓、翻转
+- 告警冷却去重，避免 Telegram 重复刷屏
 - 可选 Telegram 告警
 - Docker 部署骨架
 
@@ -67,6 +69,8 @@ docker compose up --build
 HYPERLIQUID_INFO_URL=https://api.hyperliquid.xyz/info
 MONITOR_INTERVAL_SECONDS=15
 LIQUIDATION_ALERT_PERCENT=12
+POSITION_CHANGE_ALERT_PERCENT=25
+ALERT_COOLDOWN_SECONDS=900
 WATCHED_WALLETS=[]
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=
@@ -82,8 +86,9 @@ WATCHED_WALLETS=["0x0000000000000000000000000000000000000000"]
 
 - `GET /api/health`
 - `POST /api/info`：原始 Hyperliquid `clearinghouseState` 代理
-- `POST /api/state`：归一化账户快照，并写入 SQLite
+- `POST /api/state`：归一化账户快照，计算仓位变化，并写入 SQLite
 - `GET /api/alerts`：最近告警事件
+- `GET /api/position-changes`：最近仓位变化事件
 
 `POST /api/info` 和 `POST /api/state` 请求体：
 
