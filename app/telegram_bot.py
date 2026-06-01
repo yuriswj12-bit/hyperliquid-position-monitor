@@ -1,4 +1,5 @@
 from collections.abc import Awaitable, Callable
+import logging
 from typing import Protocol
 
 from telegram import Update
@@ -11,6 +12,7 @@ from app.storage import Storage
 
 RefreshCallback = Callable[[str], Awaitable[dict]]
 FillsCallback = Callable[[str], Awaitable[dict]]
+logger = logging.getLogger("hyperdress.telegram")
 
 
 class Analyst(Protocol):
@@ -70,9 +72,10 @@ class TelegramCommandBot:
             await self.application.start()
             if self.application.updater:
                 await self.application.updater.start_polling()
+            logger.info("telegram bot started")
         except Exception as error:
             self.application = None
-            print(f"telegram bot start failed: {error}")
+            logger.exception("telegram bot start failed")
 
     async def stop(self) -> None:
         if not self.application:
@@ -83,6 +86,7 @@ class TelegramCommandBot:
         await self.application.stop()
         await self.application.shutdown()
         self.application = None
+        logger.info("telegram bot stopped")
 
     async def start_command(self, update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         await self.reply(
@@ -333,7 +337,7 @@ class TelegramCommandBot:
                     await self.reply(update, answer)
                     return
             except Exception as error:
-                print(f"ai analyst failed: {error}")
+                logger.exception("ai analyst failed")
 
         await self.keyword_fallback(update, context, text)
 
@@ -496,4 +500,3 @@ def format_wallet_summary(summary: dict) -> str:
             ]
         )
     return "\n".join(lines)
-
