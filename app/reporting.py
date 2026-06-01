@@ -5,8 +5,8 @@ def wallet_report(summary: dict) -> str:
     latest = summary.get("latest")
     if not latest:
         return (
-            f"Wallet {short_wallet(summary['user'])} has no snapshots.\n"
-            "Run /refreshwallets or /positions 0x... first."
+            f"钱包 {short_wallet(summary['user'])} 暂无快照。\n"
+            "请先执行 /refreshwallets 或 /positions 0x... 采集数据。"
         )
 
     risk = summary.get("risk") or {}
@@ -14,40 +14,40 @@ def wallet_report(summary: dict) -> str:
     deltas = summary.get("deltas") or {}
 
     lines = [
-        f"Wallet risk report: {short_wallet(summary['user'])}",
-        f"Data: {summary['snapshot_count']} snapshots/{summary['hours']}h, {summary['total_snapshot_count']} total; trend data {'enough' if summary['data_sufficient'] else 'not enough'}.",
+        f"钱包风险报告：{short_wallet(summary['user'])}",
+        f"数据：近 {summary['hours']} 小时 {summary['snapshot_count']} 条快照，总计 {summary['total_snapshot_count']} 条；趋势数据{'充足' if summary['data_sufficient'] else '不足'}。",
         "",
-        "Current",
-        f"- Account value: {money(latest['account_value'])}",
-        f"- Position value: {money(latest['total_position_value'])}",
-        f"- Unrealized PnL: {money(latest['unrealized_pnl'])}",
-        f"- Open positions: {latest['position_count']}",
+        "当前状态",
+        f"- 账户价值：{money(latest['account_value'])}",
+        f"- 仓位价值：{money(latest['total_position_value'])}",
+        f"- 未实现盈亏：{money(latest['unrealized_pnl'])}",
+        f"- 持仓数量：{latest['position_count']}",
     ]
 
     if nearest:
         lines.extend(
             [
                 "",
-                "Risk",
-                f"- Nearest liquidation distance: {percent(nearest['distance_percent'])}",
-                f"- Position: {nearest['coin']} {nearest['side']}",
-                f"- Liquidation price: {number(nearest['liquidation_px'], 2)}",
-                f"- Position value: {money(nearest['position_value'])}",
-                f"- Unrealized PnL: {money(nearest['unrealized_pnl'])}",
+                "主要风险",
+                f"- 最近强平距离：{percent(nearest['distance_percent'])}",
+                f"- 仓位：{nearest['coin']} {translate_side(nearest['side'])}",
+                f"- 强平价：{number(nearest['liquidation_px'], 2)}",
+                f"- 仓位价值：{money(nearest['position_value'])}",
+                f"- 未实现盈亏：{money(nearest['unrealized_pnl'])}",
             ]
         )
     else:
-        lines.extend(["", "Risk", "- No open position with liquidation distance."])
+        lines.extend(["", "主要风险", "- 当前没有可计算强平距离的开放仓位。"])
 
     lines.extend(
         [
             "",
-            "Window change",
-            f"- Account value: {signed_money(deltas.get('account_value'))}",
-            f"- Position value: {signed_money(deltas.get('total_position_value'))}",
-            f"- Margin used: {signed_money(deltas.get('total_margin_used'))}",
-            f"- Unrealized PnL: {signed_money(deltas.get('unrealized_pnl'))}",
-            f"- Recent position-change events: {summary.get('recent_change_count', 0)}",
+            "窗口变化",
+            f"- 账户价值：{signed_money(deltas.get('account_value'))}",
+            f"- 仓位价值：{signed_money(deltas.get('total_position_value'))}",
+            f"- 保证金使用：{signed_money(deltas.get('total_margin_used'))}",
+            f"- 未实现盈亏：{signed_money(deltas.get('unrealized_pnl'))}",
+            f"- 最近仓位变化事件：{summary.get('recent_change_count', 0)}",
         ]
     )
 
@@ -57,7 +57,7 @@ def wallet_report(summary: dict) -> str:
 def fills_report(user: str, fills: list[dict], limit: int = 10) -> str:
     visible = fills[: max(1, min(limit, 20))]
     if not visible:
-        return f"No fills stored for {short_wallet(user)}. Run /refreshfills {user} first."
+        return f"钱包 {short_wallet(user)} 暂无成交记录。请先执行 /refreshfills {user}。"
 
     total_size = sum(float_or_zero(fill.get("sz")) for fill in visible)
     total_fee = sum(float_or_zero(fill.get("fee")) for fill in visible)
@@ -66,17 +66,17 @@ def fills_report(user: str, fills: list[dict], limit: int = 10) -> str:
     groups = grouped_fills(visible)
 
     lines = [
-        f"Recent fills: {short_wallet(user)}",
-        f"Showing {len(visible)} fills in {len(groups)} groups. Coins: {coins or '-'}",
-        f"Total size: {number(total_size, 6)} | Fees: {money(total_fee)} | Closed PnL: {money(total_closed_pnl)}",
+        f"最近成交：{short_wallet(user)}",
+        f"显示 {len(visible)} 笔成交，合并为 {len(groups)} 组。币种：{coins or '-'}",
+        f"总数量：{number(total_size, 6)} | 总手续费：{money(total_fee)} | 已实现盈亏：{money(total_closed_pnl)}",
         "",
     ]
 
     for group in groups:
         lines.append(
-            f"- {group['time']} | {group['coin']} {group['direction']} | "
-            f"{group['count']} fills | sz {number(group['size'], 6)} @ {number(group['price'], 2)} | "
-            f"fee {money(group['fee'])} | pnl {money(group['closed_pnl'])}"
+            f"- 时间：{group['time']} | {group['coin']} {translate_direction(group['direction'])} | "
+            f"{group['count']} 笔 | 数量 {number(group['size'], 6)} | 价格 {number(group['price'], 2)} | "
+            f"手续费 {money(group['fee'])} | 盈亏 {money(group['closed_pnl'])}"
         )
     return "\n".join(lines)
 
@@ -113,6 +113,31 @@ def grouped_fills(fills: list[dict]) -> list[dict]:
 
 def short_wallet(wallet: str) -> str:
     return f"{wallet[:6]}...{wallet[-4:]}" if len(wallet) > 12 else wallet
+
+
+def translate_side(value: object) -> str:
+    side = str(value or "").lower()
+    if side == "long":
+        return "多头"
+    if side == "short":
+        return "空头"
+    return str(value or "-")
+
+
+def translate_direction(value: object) -> str:
+    direction = str(value or "-")
+    normalized = direction.lower()
+    mapping = {
+        "open long": "开仓做多",
+        "open short": "开仓做空",
+        "close long": "平多",
+        "close short": "平空",
+        "buy": "买入",
+        "sell": "卖出",
+        "b": "买入",
+        "a": "卖出",
+    }
+    return mapping.get(normalized, direction)
 
 
 def money(value: object) -> str:
