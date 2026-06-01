@@ -83,7 +83,7 @@ After the service starts, the bot supports:
 - `/positions`: show the latest configured or stored wallet snapshot.
 - `/alerts`: recent risk alerts.
 - `/changes`: recent position changes.
-- `/fills <wallet>`: compact grouped fills report for one wallet, defaulting to 10 fills.
+- `/fills <wallet>`: Chinese compact grouped fills report for one wallet, defaulting to 10 fills.
 - `/refreshfills <wallet>`: fetch fresh `userFills` from Hyperliquid and save new fills.
 - `/top`: wallet with the largest latest position value among stored snapshots.
 - `/summary <wallet> [hours]`: stored snapshot summary, risk overview, and trend-readiness for one wallet.
