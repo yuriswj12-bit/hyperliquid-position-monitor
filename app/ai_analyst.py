@@ -5,7 +5,7 @@ from typing import Any
 import httpx
 
 from app.config import Settings
-from app.models import AccountSnapshot
+from app.models import AccountSnapshot, WatchedWalletRequest
 from app.storage import Storage
 
 RefreshCallback = Callable[[str], Awaitable[dict]]
@@ -35,6 +35,8 @@ class AIAnalyst:
                     "For alert/risk questions, call get_recent_alerts. "
                     "For position-change questions, call get_recent_changes. "
                     "For largest/top wallet questions, call get_top_wallet_by_position_value. "
+                    "For watchlist/list monitored wallets questions, call list_watched_wallets. "
+                    "For requests to add or remove monitored wallets, call add_watched_wallet or remove_watched_wallet. "
                     "For position questions with a wallet address, call refresh_wallet_state. "
                     "For position questions without a wallet address, call get_latest_positions. "
                     "If the relevant tool returns no data, say that clearly and tell the user the next action."
@@ -101,6 +103,18 @@ class AIAnalyst:
             return {"changes": await self.storage.recent_position_changes(limit_int(arguments.get("limit"), 10))}
         if name == "get_top_wallet_by_position_value":
             return {"top_wallet": await self.storage.largest_position_value_wallet()}
+        if name == "list_watched_wallets":
+            return {"wallets": await self.storage.list_watched_wallets()}
+        if name == "add_watched_wallet":
+            wallet = WatchedWalletRequest(
+                user=arguments["wallet"],
+                name=arguments.get("name"),
+                tags=arguments.get("tags"),
+                notes=arguments.get("notes"),
+            )
+            return {"wallet": await self.storage.upsert_watched_wallet(wallet)}
+        if name == "remove_watched_wallet":
+            return {"deleted": await self.storage.delete_watched_wallet(arguments["wallet"]), "wallet": arguments["wallet"]}
         if name == "get_latest_positions":
             wallet = arguments.get("wallet")
             snapshot = None
@@ -189,6 +203,45 @@ TOOL_SCHEMAS = [
             "name": "get_top_wallet_by_position_value",
             "description": "Find the wallet with the largest latest total position value among stored snapshots.",
             "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_watched_wallets",
+            "description": "List database watchlist wallets with names, tags, notes, and timestamps.",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "add_watched_wallet",
+            "description": "Add or update a wallet in the database watchlist.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "wallet": {"type": "string", "description": "0x wallet address."},
+                    "name": {"type": "string", "description": "Optional short display name."},
+                    "tags": {"type": "string", "description": "Optional comma-separated tags."},
+                    "notes": {"type": "string", "description": "Optional notes."},
+                },
+                "required": ["wallet"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "remove_watched_wallet",
+            "description": "Remove a wallet from the database watchlist.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "wallet": {"type": "string", "description": "0x wallet address."},
+                },
+                "required": ["wallet"],
+            },
         },
     },
 ]
