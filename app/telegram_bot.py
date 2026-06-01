@@ -6,6 +6,7 @@ from telegram.ext import Application, ApplicationBuilder, CommandHandler, Contex
 
 from app.config import Settings
 from app.models import AccountSnapshot, WatchedWalletRequest
+from app.reporting import wallet_report
 from app.storage import Storage
 
 RefreshCallback = Callable[[str], Awaitable[dict]]
@@ -53,6 +54,7 @@ class TelegramCommandBot:
             self.application.add_handler(CommandHandler("changes", self.changes_command))
             self.application.add_handler(CommandHandler("top", self.top_command))
             self.application.add_handler(CommandHandler("summary", self.summary_command))
+            self.application.add_handler(CommandHandler("report", self.report_command))
             self.application.add_handler(CommandHandler("wallets", self.wallets_command))
             self.application.add_handler(CommandHandler("addwallet", self.add_wallet_command))
             self.application.add_handler(CommandHandler("removewallet", self.remove_wallet_command))
@@ -88,6 +90,7 @@ class TelegramCommandBot:
             "/changes\n"
             "/top\n"
             "/summary <wallet> [hours]\n"
+            "/report <wallet> [hours]\n"
             "/wallets\n"
             "/addwallet <wallet> <name>\n"
             "/removewallet <wallet>\n"
@@ -272,6 +275,15 @@ class TelegramCommandBot:
         hours = parse_limit(context.args[1:], default=24, maximum=720)
         summary = await self.storage.wallet_summary(context.args[0], hours)
         await self.reply(update, format_wallet_summary(summary))
+
+    async def report_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not context.args or not is_wallet(context.args[0]):
+            await self.reply(update, "Usage: /report 0x... [hours]")
+            return
+
+        hours = parse_limit(context.args[1:], default=24, maximum=720)
+        summary = await self.storage.wallet_summary(context.args[0], hours)
+        await self.reply(update, wallet_report(summary))
 
     async def text_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         text = update.message.text.strip() if update.message and update.message.text else ""
