@@ -424,6 +424,19 @@ def format_wallet_summary(summary: dict) -> str:
             f"Positions: {latest['position_count']}",
         ]
     )
+    risk = summary.get("risk") or {}
+    nearest = risk.get("nearest_liquidation_position")
+    if nearest:
+        lines.extend(
+            [
+                "Risk:",
+                f"- Nearest liquidation: {nearest['coin']} {nearest['side']} {nearest['distance_percent']:.2f}%",
+                f"- Position value: ${nearest['position_value']:,.2f}",
+            ]
+        )
+    else:
+        lines.append("Risk: no open position with liquidation distance.")
+    lines.append(f"Recent changes: {summary.get('recent_change_count', 0)}")
     if deltas and summary["data_sufficient"]:
         lines.extend(
             [
