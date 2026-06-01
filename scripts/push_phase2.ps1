@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 
 $repo = "yuriswj12-bit/hyperliquid-position-monitor"
 $branch = "codex/mvp-hyperdress-monitor"
-$message = "Add wallet history summary"
+$message = "Add wallet risk activity summary"
 $files = @(
   ".env.example",
   "README.md",
