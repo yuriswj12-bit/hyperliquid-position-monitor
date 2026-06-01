@@ -64,6 +64,7 @@ The AI layer must not invent market or wallet data. It should call local tools b
 - Send concise liquidation-risk alerts.
 - Support command queries: `/status`, `/positions`, `/alerts`, `/changes`, `/top`.
 - Support history summary query: `/summary <wallet> [hours]`.
+- Support formatted risk report query: `/report <wallet> [hours]`.
 - Support watchlist commands: `/wallets`, `/addwallet`, `/removewallet`.
 - Support manual watchlist refresh with `/refreshwallets`.
 - Support natural-language questions through the AI analyst when configured.
@@ -82,6 +83,7 @@ The AI layer must not invent market or wallet data. It should call local tools b
   - watched-wallet list management
   - watchlist data refresh
   - wallet history summary and data sufficiency
+  - formatted wallet risk report
 - The final reply should be short, fact-based, and in the user's language.
 
 ## Non-MVP Scope
