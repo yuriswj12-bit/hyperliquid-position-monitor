@@ -5,7 +5,7 @@ import aiosqlite
 
 from datetime import datetime, timezone
 
-from app.models import AccountSnapshot, AlertEvent, PositionChange
+from app.models import AccountSnapshot, AlertEvent, PositionChange, WatchedWalletRequest
 from app.risk import normalize_snapshot
 
 
@@ -72,7 +72,81 @@ class Storage:
                 )
                 """
             )
+            await db.execute(
+                """
+                create table if not exists watched_wallets (
+                    user text primary key,
+                    name text,
+                    tags text,
+                    notes text,
+                    created_at text not null,
+                    updated_at text not null
+                )
+                """
+            )
             await db.commit()
+
+    async def list_watched_wallets(self) -> list[dict]:
+        async with aiosqlite.connect(self.database_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                """
+                select user, name, tags, notes, created_at, updated_at
+                from watched_wallets
+                order by coalesce(name, user), user
+                """
+            )
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+
+    async def upsert_watched_wallet(self, wallet: WatchedWalletRequest) -> dict:
+        now = datetime.now(timezone.utc).isoformat()
+        async with aiosqlite.connect(self.database_path) as db:
+            await db.execute(
+                """
+                insert into watched_wallets (user, name, tags, notes, created_at, updated_at)
+                values (?, ?, ?, ?, ?, ?)
+                on conflict(user) do update set
+                    name = excluded.name,
+                    tags = excluded.tags,
+                    notes = excluded.notes,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    wallet.user,
+                    clean_optional(wallet.name),
+                    clean_optional(wallet.tags),
+                    clean_optional(wallet.notes),
+                    now,
+                    now,
+                ),
+            )
+            await db.commit()
+        return await self.get_watched_wallet(wallet.user) or {}
+
+    async def get_watched_wallet(self, user: str) -> dict | None:
+        async with aiosqlite.connect(self.database_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                """
+                select user, name, tags, notes, created_at, updated_at
+                from watched_wallets
+                where user = ?
+                """,
+                (user,),
+            )
+            row = await cursor.fetchone()
+            return dict(row) if row else None
+
+    async def delete_watched_wallet(self, user: str) -> bool:
+        async with aiosqlite.connect(self.database_path) as db:
+            cursor = await db.execute("delete from watched_wallets where user = ?", (user,))
+            await db.commit()
+            return cursor.rowcount > 0
+
+    async def active_wallet_addresses(self, configured_wallets: list[str]) -> list[str]:
+        database_wallets = [wallet["user"] for wallet in await self.list_watched_wallets()]
+        return list(dict.fromkeys([*configured_wallets, *database_wallets]))
 
     async def _ensure_column(self, db: aiosqlite.Connection, table: str, column: str, definition: str) -> None:
         cursor = await db.execute(f"pragma table_info({table})")
@@ -275,3 +349,10 @@ class Storage:
                 if (now - last_sent).total_seconds() >= cooldown_seconds:
                     allowed.append(event)
         return allowed
+
+
+def clean_optional(value: str | None) -> str | None:
+    if value is None:
+        return None
+    cleaned = value.strip()
+    return cleaned or None
