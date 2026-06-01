@@ -1,60 +1,82 @@
 # Hyperdress.AI Product Spec
 
-## 目标
+## Goal
 
-Hyperdress.AI 的 MVP 目标是稳定监控 Hyperliquid 上的一组重点地址，并在仓位风险或异常变化出现时给出即时提醒。第一版优先解决“看得见、存得下、能告警”，AI 聊天分析作为第二阶段建立在结构化数据之上。
+Hyperdress.AI monitors important Hyperliquid wallet addresses, records position state over time, detects liquidation risk and abnormal position changes, and makes the data queryable through a web dashboard and Telegram.
 
-## 用户场景
+The current product direction is:
 
-- 交易员监控重点地址是否接近强平
-- 研究员跟踪空头地址的新开仓、加仓、减仓和平仓
-- 团队通过 Telegram 接收高风险仓位提醒
-- 后续通过自然语言查询当前持仓、历史变化和统计结论
+```text
+user natural language -> AI understanding -> tool/database analysis -> AI-generated reply
+```
 
-## MVP 范围
+The AI layer must not invent market or wallet data. It should call local tools backed by SQLite snapshots, recent alerts, recent position changes, and live Hyperliquid refreshes.
 
-### 地址监控
+## User Scenarios
 
-- 支持配置多个 `0x` 钱包地址
-- 周期性请求 Hyperliquid `clearinghouseState`
-- 保存账户权益、仓位价值、保证金使用、可提现余额和原始响应
+- A trader monitors whether key wallets are approaching liquidation.
+- A researcher tracks opened, closed, increased, reduced, or flipped positions.
+- A team receives high-risk Telegram alerts.
+- A user asks natural-language questions such as "最近仓位价值最大的地址是谁" or "这个地址有没有接近强平".
 
-### 风险识别
+## MVP Scope
 
-- 计算每个仓位距离强平价的百分比
-- 根据 `LIQUIDATION_ALERT_PERCENT` 标记 `critical` 与 `warning`
-- 保存告警事件，避免风险信息只停留在前端
-- 使用 `ALERT_COOLDOWN_SECONDS` 对相同钱包、币种、严重级别的告警做冷却去重
+### Wallet Monitoring
 
-### 仓位变化
+- Configure one or more `0x` wallet addresses.
+- Poll Hyperliquid `clearinghouseState`.
+- Store account value, position value, margin usage, withdrawable balance, unrealized PnL, and raw response data.
 
-- 对比同一地址的上一条快照与当前快照
-- 识别 `opened`、`closed`、`flipped`、`increased`、`reduced`
-- 使用 `POSITION_CHANGE_ALERT_PERCENT` 控制加仓/减仓的触发阈值
-- 将变化事件保存到 SQLite，供后续 Telegram 查询和 AI 分析使用
+### Risk Detection
 
-### Web 面板
+- Calculate each position's distance to liquidation price.
+- Mark `critical` and `warning` alerts using `LIQUIDATION_ALERT_PERCENT`.
+- Persist alert events.
+- Use `ALERT_COOLDOWN_SECONDS` to deduplicate repeated alerts.
 
-- 输入钱包地址后实时查看账户摘要
-- 展示 open positions 表格
-- 展示强平距离与风险提醒
-- 支持自定义刷新间隔、API endpoint 和风险阈值
+### Position Changes
 
-### Telegram 告警
+- Compare the previous and current snapshot for the same wallet.
+- Detect `opened`, `closed`, `flipped`, `increased`, and `reduced`.
+- Use `POSITION_CHANGE_ALERT_PERCENT` to control increased/reduced sensitivity.
+- Store position-change events in SQLite for Telegram and AI analysis.
 
-- 配置 `TELEGRAM_BOT_TOKEN` 与 `TELEGRAM_CHAT_ID` 后启用
-- 对强平距离告警发送简洁文本消息
-- 支持 `/status`、`/positions`、`/alerts`、`/changes` 命令查询
+### Web Dashboard
 
-## 非 MVP 范围
+- Query a wallet from the browser.
+- Display account summary and open positions.
+- Show liquidation distance and risk status.
+- Allow custom refresh interval, API endpoint, and risk threshold.
 
-- 自动交易或下单
-- 私钥管理
-- 多用户权限系统
-- 复杂策略回测
-- 完整 AI Agent 工作流
+### Telegram Bot
 
-## 数据模型
+- Enable with `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`.
+- Send concise liquidation-risk alerts.
+- Support command queries: `/status`, `/positions`, `/alerts`, `/changes`, `/top`.
+- Support natural-language questions through the AI analyst when configured.
+- Fall back to keyword routing if AI is disabled or unavailable.
+
+### AI Analyst
+
+- Free transition provider: Groq OpenAI-compatible API.
+- Enabled with `AI_PROVIDER=groq` and `GROQ_API_KEY`.
+- Available tools:
+  - latest stored positions
+  - live wallet refresh
+  - recent alerts
+  - recent position changes
+  - wallet with largest latest position value
+- The final reply should be short, fact-based, and in the user's language.
+
+## Non-MVP Scope
+
+- Automatic trading or order placement.
+- Private key custody.
+- Multi-user permission system.
+- Strategy backtesting.
+- Full autonomous AI agent workflow.
+
+## Data Model
 
 ### Snapshot
 
@@ -74,6 +96,7 @@ Hyperdress.AI 的 MVP 目标是稳定监控 Hyperliquid 上的一组重点地址
 - `severity`
 - `message`
 - `created_at`
+- `fingerprint`
 
 ### Position Change
 
@@ -88,12 +111,10 @@ Hyperdress.AI 的 MVP 目标是稳定监控 Hyperliquid 上的一组重点地址
 - `message`
 - `created_at`
 
-## 后续路线
+## Roadmap
 
-1. 地址分组与标签
-2. 仓位变化 diff：新开、加仓、减仓、平仓
-3. 告警去重与冷却时间
-4. Telegram 命令查询当前仓位
-5. AI 聊天分析：基于 SQLite 快照回答统计类问题
-6. WebSocket 数据源与更低延迟监控
-7. Docker 部署与健康检查完善
+1. Wallet groups and labels.
+2. More Telegram report templates.
+3. AI memory over saved snapshots and changes.
+4. WebSocket data source for lower latency.
+5. Deployment health checks and production hosting.
