@@ -198,6 +198,11 @@ h2 {
   font-size: 13px;
 }
 
+.watchlist-head-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .watchlist-form {
   display: grid;
   grid-template-columns: minmax(260px, 1.2fr) minmax(180px, 0.8fr) minmax(180px, 0.8fr) 120px;
