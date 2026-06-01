@@ -4,6 +4,7 @@ const state = {
   timer: null,
   running: false,
   lastPositions: [],
+  watchlist: [],
 };
 
 const els = {
@@ -23,6 +24,12 @@ const els = {
   positionsBody: document.querySelector("#positionsBody"),
   alertsList: document.querySelector("#alertsList"),
   changesList: document.querySelector("#changesList"),
+  watchWallet: document.querySelector("#watchWalletInput"),
+  watchName: document.querySelector("#watchNameInput"),
+  watchTags: document.querySelector("#watchTagsInput"),
+  addWallet: document.querySelector("#addWalletButton"),
+  reloadWallets: document.querySelector("#reloadWalletsButton"),
+  watchlist: document.querySelector("#watchlist"),
 };
 
 function toNumber(value) {
@@ -61,6 +68,19 @@ function setStatus(text, mode = "") {
   els.status.className = `status-pill ${mode}`.trim();
 }
 
+function shortWallet(wallet) {
+  return wallet.length > 12 ? `${wallet.slice(0, 6)}...${wallet.slice(-4)}` : wallet;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 function normalizedEndpoint() {
   return els.endpoint.value.trim() || DEFAULT_ENDPOINT;
 }
@@ -86,6 +106,53 @@ async function fetchPositionState() {
   }
 
   return payload;
+}
+
+async function loadWatchlist() {
+  const response = await fetch("/api/watched-wallets");
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.detail || `Request failed with ${response.status}`);
+  }
+  state.watchlist = payload;
+  renderWatchlist();
+}
+
+async function saveWatchWallet() {
+  const user = els.watchWallet.value.trim();
+  if (!validateWallet(user)) {
+    setStatus("Error", "error");
+    els.watchlist.innerHTML = '<div class="alert-item"><strong>Invalid wallet</strong><span>Enter a valid 0x wallet address.</span></div>';
+    return;
+  }
+
+  const response = await fetch("/api/watched-wallets", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      user,
+      name: els.watchName.value.trim() || null,
+      tags: els.watchTags.value.trim() || null,
+    }),
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.detail || `Request failed with ${response.status}`);
+  }
+
+  els.watchWallet.value = "";
+  els.watchName.value = "";
+  els.watchTags.value = "";
+  await loadWatchlist();
+}
+
+async function deleteWatchWallet(user) {
+  const response = await fetch(`/api/watched-wallets/${encodeURIComponent(user)}`, { method: "DELETE" });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.detail || `Request failed with ${response.status}`);
+  }
+  await loadWatchlist();
 }
 
 function liquidationDistance(position) {
@@ -184,6 +251,33 @@ function renderChanges(changes) {
     .join("");
 }
 
+function renderWatchlist() {
+  if (!state.watchlist.length) {
+    els.watchlist.innerHTML = '<div class="quiet">No database watchlist wallets yet.</div>';
+    return;
+  }
+
+  els.watchlist.innerHTML = state.watchlist
+    .map((wallet) => {
+      const label = escapeHtml(wallet.name || shortWallet(wallet.user));
+      const tags = wallet.tags ? `<span class="tag">${escapeHtml(wallet.tags)}</span>` : "";
+      const user = escapeHtml(wallet.user);
+      return `
+        <div class="watch-item">
+          <div>
+            <strong>${label}</strong>
+            <span>${escapeHtml(shortWallet(wallet.user))} ${tags}</span>
+          </div>
+          <div class="watch-actions">
+            <button type="button" data-use-wallet="${user}">Use</button>
+            <button type="button" data-delete-wallet="${user}">Delete</button>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+}
+
 function render(payload) {
   const raw = payload.snapshot?.raw || payload;
   const positions = Array.isArray(raw.assetPositions) ? raw.assetPositions : [];
@@ -246,6 +340,31 @@ function startMonitor() {
 }
 
 els.start.addEventListener("click", startMonitor);
+els.addWallet.addEventListener("click", () => {
+  saveWatchWallet().catch((error) => {
+    setStatus("Error", "error");
+    els.watchlist.innerHTML = `<div class="alert-item"><strong>Save failed</strong><span>${error.message}</span></div>`;
+  });
+});
+els.reloadWallets.addEventListener("click", () => {
+  loadWatchlist().catch((error) => {
+    setStatus("Error", "error");
+    els.watchlist.innerHTML = `<div class="alert-item"><strong>Load failed</strong><span>${error.message}</span></div>`;
+  });
+});
+els.watchlist.addEventListener("click", (event) => {
+  const useButton = event.target.closest("[data-use-wallet]");
+  const deleteButton = event.target.closest("[data-delete-wallet]");
+  if (useButton) {
+    els.wallet.value = useButton.dataset.useWallet;
+  }
+  if (deleteButton) {
+    deleteWatchWallet(deleteButton.dataset.deleteWallet).catch((error) => {
+      setStatus("Error", "error");
+      els.watchlist.innerHTML = `<div class="alert-item"><strong>Delete failed</strong><span>${error.message}</span></div>`;
+    });
+  }
+});
 els.refresh.addEventListener("change", () => {
   if (!state.running) return;
   window.clearInterval(state.timer);
@@ -257,4 +376,8 @@ els.risk.addEventListener("change", () => {
     els.positionsBody.innerHTML = positionRows(state.lastPositions, threshold);
     renderAlerts(state.lastPositions, threshold);
   }
+});
+
+loadWatchlist().catch((error) => {
+  els.watchlist.innerHTML = `<div class="alert-item"><strong>Load failed</strong><span>${error.message}</span></div>`;
 });
