@@ -91,8 +91,8 @@ class TelegramCommandBot:
     async def start_command(self, update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         await self.reply(
             update,
-            "Hyperdress.AI bot is online.\n"
-            "Commands:\n"
+            "Hyperdress.AI 机器人已在线。\n"
+            "可用命令：\n"
             "/status\n"
             "/positions <wallet>\n"
             "/alerts\n"
@@ -106,25 +106,25 @@ class TelegramCommandBot:
             "/addwallet <wallet> <name>\n"
             "/removewallet <wallet>\n"
             "/refreshwallets\n\n"
-            "Plain-text examples:\n"
-            "recent alerts\n"
-            "recent changes\n"
-            "largest position value wallet\n"
-            "positions 0x...",
+            "自然语言示例：\n"
+            "最近告警\n"
+            "最近仓位变化\n"
+            "仓位价值最大的地址\n"
+            "查看 0x... 的仓位",
         )
 
     async def status_command(self, update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         configured = self.settings.watched_wallets
         database_wallets = await self.storage.list_watched_wallets()
         text = [
-            "Hyperdress.AI status",
-            f"Configured wallets: {len(configured)}",
-            f"Database watchlist: {len(database_wallets)}",
-            f"Refresh interval: {self.settings.monitor_interval_seconds}s",
-            f"Liquidation alert: {self.settings.liquidation_alert_percent:g}%",
-            f"Position change alert: {self.settings.position_change_alert_percent:g}%",
-            f"Alert cooldown: {self.settings.alert_cooldown_seconds}s",
-            f"AI analyst: {'enabled' if self.analyst and self.analyst.enabled else 'disabled'}",
+            "Hyperdress.AI 状态",
+            f"配置文件钱包数：{len(configured)}",
+            f"数据库监控列表：{len(database_wallets)}",
+            f"刷新间隔：{self.settings.monitor_interval_seconds}s",
+            f"强平距离告警阈值：{self.settings.liquidation_alert_percent:g}%",
+            f"仓位变化告警阈值：{self.settings.position_change_alert_percent:g}%",
+            f"告警冷却：{self.settings.alert_cooldown_seconds}s",
+            f"AI 分析：{'已启用' if self.analyst and self.analyst.enabled else '未启用'}",
         ]
         if database_wallets:
             text.append("")
@@ -137,17 +137,17 @@ class TelegramCommandBot:
     async def wallets_command(self, update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         wallets = await self.storage.list_watched_wallets()
         if not wallets:
-            await self.reply(update, "No database watchlist wallets yet. Use /addwallet 0x... name")
+            await self.reply(update, "数据库监控列表为空。使用 /addwallet 0x... 名称 添加。")
             return
 
-        lines = ["Watchlist"]
+        lines = ["监控列表"]
         for wallet in wallets[:30]:
             lines.append(f"- {format_wallet_label(wallet)}")
         await self.reply(update, "\n".join(lines))
 
     async def fills_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not context.args or not is_wallet(context.args[0]):
-            await self.reply(update, "Usage: /fills 0x... [limit]")
+            await self.reply(update, "用法：/fills 0x... [数量]")
             return
 
         limit = parse_limit(context.args[1:], default=10, maximum=20)
@@ -156,49 +156,49 @@ class TelegramCommandBot:
 
     async def refresh_fills_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not context.args or not is_wallet(context.args[0]):
-            await self.reply(update, "Usage: /refreshfills 0x...")
+            await self.reply(update, "用法：/refreshfills 0x...")
             return
         if not self.fills_callback:
-            await self.reply(update, "Fills refresh is not available.")
+            await self.reply(update, "成交刷新功能暂不可用。")
             return
 
         try:
             result = await self.fills_callback(context.args[0])
         except Exception as error:
-            await self.reply(update, f"Failed to refresh fills: {error}")
+            await self.reply(update, f"刷新成交失败：{error}")
             return
         fills = await self.storage.recent_fills(context.args[0], 10)
         await self.reply(
             update,
-            f"Fetched {result['fetched_count']} fills, saved {result['saved_count']} new fills.\n\n"
+            f"已拉取 {result['fetched_count']} 条成交，新增保存 {result['saved_count']} 条。\n\n"
             f"{fills_report(context.args[0], fills, 10)}",
         )
 
     async def add_wallet_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not context.args or not is_wallet(context.args[0]):
-            await self.reply(update, "Usage: /addwallet 0x... name")
+            await self.reply(update, "用法：/addwallet 0x... 名称")
             return
 
         user = context.args[0]
         name = " ".join(context.args[1:]).strip() or None
         wallet = await self.storage.upsert_watched_wallet(WatchedWalletRequest(user=user, name=name))
-        await self.reply(update, f"Added to watchlist: {format_wallet_label(wallet)}")
+        await self.reply(update, f"已加入监控列表：{format_wallet_label(wallet)}")
 
     async def remove_wallet_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not context.args or not is_wallet(context.args[0]):
-            await self.reply(update, "Usage: /removewallet 0x...")
+            await self.reply(update, "用法：/removewallet 0x...")
             return
 
         deleted = await self.storage.delete_watched_wallet(context.args[0])
         if deleted:
-            await self.reply(update, f"Removed from watchlist: {short_wallet(context.args[0])}")
+            await self.reply(update, f"已移出监控列表：{short_wallet(context.args[0])}")
         else:
-            await self.reply(update, "Wallet is not in the database watchlist.")
+            await self.reply(update, "该钱包不在数据库监控列表中。")
 
     async def refresh_wallets_command(self, update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         wallets = await self.storage.active_wallet_addresses(self.settings.watched_wallets)
         if not wallets:
-            await self.reply(update, "No wallets to refresh. Add one with /addwallet 0x... name")
+            await self.reply(update, "暂无可刷新的钱包。使用 /addwallet 0x... 名称 添加。")
             return
 
         results = []
@@ -218,28 +218,28 @@ class TelegramCommandBot:
                 results.append({"user": wallet, "ok": False, "error": str(error)})
 
         success_count = sum(1 for result in results if result["ok"])
-        lines = [f"Refreshed {success_count}/{len(results)} wallets"]
+        lines = [f"已刷新 {success_count}/{len(results)} 个钱包"]
         for result in results[:15]:
             if result["ok"]:
                 lines.append(
                     f"- {short_wallet(result['user'])}: "
-                    f"{result['positions']} positions, {result['changes']} changes, {result['alerts']} alerts"
+                    f"{result['positions']} 个仓位，{result['changes']} 个变化，{result['alerts']} 个告警"
                 )
             else:
-                lines.append(f"- {short_wallet(result['user'])}: failed - {result['error']}")
+                lines.append(f"- {short_wallet(result['user'])}: 失败 - {result['error']}")
         await self.reply(update, "\n".join(lines))
 
     async def positions_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         wallet = context.args[0] if context.args else None
         if wallet:
             if not is_wallet(wallet):
-                await self.reply(update, "Usage: /positions 0x...")
+                await self.reply(update, "用法：/positions 0x...")
                 return
             try:
                 result = await self.refresh_callback(wallet)
                 snapshot = AccountSnapshot.model_validate(result["snapshot"])
             except Exception as error:
-                await self.reply(update, f"Failed to refresh positions: {error}")
+                await self.reply(update, f"刷新仓位失败：{error}")
                 return
         else:
             database_wallets = await self.storage.list_watched_wallets()
@@ -256,7 +256,7 @@ class TelegramCommandBot:
                 else await self.storage.latest_any_snapshot(self.settings.liquidation_alert_percent)
             )
             if snapshot is None:
-                await self.reply(update, "No snapshot yet. Use /positions 0x... first or add a wallet to the watchlist.")
+                await self.reply(update, "暂无快照。请先使用 /positions 0x...，或把钱包加入监控列表。")
                 return
 
         await self.reply(update, format_positions(snapshot))
@@ -265,27 +265,30 @@ class TelegramCommandBot:
         limit = parse_limit(context.args, default=5, maximum=20)
         alerts = await self.storage.recent_alerts(limit)
         if not alerts:
-            await self.reply(update, "No alerts recorded.")
+            await self.reply(update, "暂无告警记录。")
             return
 
-        lines = ["Recent alerts"]
+        lines = ["最近告警"]
         for alert in alerts:
-            lines.append(f"- [{alert['severity']}] {alert['coin']} {short_wallet(alert['user'])}: {alert['message']}")
+            lines.append(
+                f"- [{translate_severity(alert['severity'])}] {alert['coin']} "
+                f"{short_wallet(alert['user'])}: {alert['message']}"
+            )
         await self.reply(update, "\n".join(lines))
 
     async def changes_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         limit = parse_limit(context.args, default=5, maximum=20)
         changes = await self.storage.recent_position_changes(limit)
         if not changes:
-            await self.reply(update, "No position changes recorded.")
+            await self.reply(update, "暂无仓位变化记录。")
             return
 
-        lines = ["Recent position changes"]
+        lines = ["最近仓位变化"]
         for change in changes:
             percent = change["change_percent"]
             pct = "" if percent is None else f" ({percent:.2f}%)"
             lines.append(
-                f"- {change['coin']} {change['change_type']}{pct}: "
+                f"- {change['coin']} {translate_change_type(change['change_type'])}{pct}: "
                 f"{change['previous_size']:g} -> {change['current_size']:g}"
             )
         await self.reply(update, "\n".join(lines))
@@ -293,23 +296,23 @@ class TelegramCommandBot:
     async def top_command(self, update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         top = await self.storage.largest_position_value_wallet()
         if not top:
-            await self.reply(update, "No snapshots recorded yet. Use /positions 0x... first.")
+            await self.reply(update, "暂无快照记录。请先使用 /positions 0x...。")
             return
 
         await self.reply(
             update,
-            "Largest latest position value\n"
-            f"Wallet: {short_wallet(top['user'])}\n"
-            f"Position value: ${top['total_position_value']:,.2f}\n"
-            f"Account value: ${top['account_value']:,.2f}\n"
-            f"Margin used: ${top['total_margin_used']:,.2f}\n"
-            f"Unrealized PnL: ${top['unrealized_pnl']:,.2f}\n"
-            f"Updated: {top['captured_at']}",
+            "当前仓位价值最大的地址\n"
+            f"钱包：{short_wallet(top['user'])}\n"
+            f"仓位价值：${top['total_position_value']:,.2f}\n"
+            f"账户价值：${top['account_value']:,.2f}\n"
+            f"保证金使用：${top['total_margin_used']:,.2f}\n"
+            f"未实现盈亏：${top['unrealized_pnl']:,.2f}\n"
+            f"更新时间：{top['captured_at']}",
         )
 
     async def summary_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not context.args or not is_wallet(context.args[0]):
-            await self.reply(update, "Usage: /summary 0x... [hours]")
+            await self.reply(update, "用法：/summary 0x... [小时]")
             return
 
         hours = parse_limit(context.args[1:], default=24, maximum=720)
@@ -318,7 +321,7 @@ class TelegramCommandBot:
 
     async def report_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not context.args or not is_wallet(context.args[0]):
-            await self.reply(update, "Usage: /report 0x... [hours]")
+            await self.reply(update, "用法：/report 0x... [小时]")
             return
 
         hours = parse_limit(context.args[1:], default=24, maximum=720)
@@ -345,47 +348,49 @@ class TelegramCommandBot:
         lowered = text.lower()
         wallet = first_wallet(text)
 
-        if any(keyword in lowered for keyword in ["status", "state", "config", "monitor"]):
+        if any(keyword in lowered for keyword in ["status", "state", "config", "monitor", "状态", "配置", "监控"]):
             await self.status_command(update, context)
             return
 
-        if any(keyword in lowered for keyword in ["watchlist", "wallets", "address list", "monitor list"]):
+        if any(keyword in lowered for keyword in ["watchlist", "wallets", "address list", "monitor list", "钱包", "地址列表", "监控列表"]):
             await self.wallets_command(update, context)
             return
 
-        if "refresh" in lowered and any(keyword in lowered for keyword in ["wallet", "watchlist", "monitor"]):
+        if ("refresh" in lowered or "刷新" in lowered) and any(
+            keyword in lowered for keyword in ["wallet", "watchlist", "monitor", "钱包", "监控", "列表"]
+        ):
             await self.refresh_wallets_command(update, context)
             return
 
-        if any(keyword in lowered for keyword in ["top", "largest"]) and any(
-            keyword in lowered for keyword in ["position", "address", "wallet"]
+        if any(keyword in lowered for keyword in ["top", "largest", "最大", "最高"]) and any(
+            keyword in lowered for keyword in ["position", "address", "wallet", "仓位", "地址", "钱包"]
         ):
             await self.top_command(update, context)
             return
 
-        if wallet or any(keyword in lowered for keyword in ["position", "positions"]):
+        if wallet or any(keyword in lowered for keyword in ["position", "positions", "仓位", "持仓"]):
             if wallet:
                 context.args = [wallet]
             await self.positions_command(update, context)
             return
 
-        if any(keyword in lowered for keyword in ["alert", "alerts", "risk", "liquidation"]):
+        if any(keyword in lowered for keyword in ["alert", "alerts", "risk", "liquidation", "告警", "风险", "强平"]):
             await self.alerts_command(update, context)
             return
 
-        if any(keyword in lowered for keyword in ["change", "changes", "opened", "closed", "increased", "reduced"]):
+        if any(keyword in lowered for keyword in ["change", "changes", "opened", "closed", "increased", "reduced", "变化", "开仓", "平仓", "加仓", "减仓"]):
             await self.changes_command(update, context)
             return
 
         await self.reply(
             update,
-            "AI analyst is not available, so I used command mode.\n"
-            "Try:\n"
-            "- recent alerts\n"
-            "- recent changes\n"
-            "- positions 0x...\n"
-            "- watchlist\n"
-            "- status",
+            "AI 分析暂不可用，已切换到命令模式。\n"
+            "可尝试：\n"
+            "- 最近告警\n"
+            "- 最近仓位变化\n"
+            "- 查看 0x... 的仓位\n"
+            "- 监控列表\n"
+            "- 状态",
         )
 
     async def reply(self, update: Update, text: str) -> None:
@@ -418,8 +423,8 @@ def format_wallet_label(wallet: dict) -> str:
     label = wallet.get("name") or short_wallet(wallet["user"])
     tags = f" [{wallet['tags']}]" if wallet.get("tags") else ""
     snapshot_count = wallet.get("snapshot_count") or 0
-    latest = wallet.get("latest_snapshot_at") or "never"
-    return f"{label}{tags}: {short_wallet(wallet['user'])} | snapshots {snapshot_count} | latest {latest}"
+    latest = wallet.get("latest_snapshot_at") or "暂无"
+    return f"{label}{tags}: {short_wallet(wallet['user'])} | 快照 {snapshot_count} | 最新 {latest}"
 
 
 def parse_limit(args: list[str], default: int, maximum: int) -> int:
@@ -433,23 +438,23 @@ def parse_limit(args: list[str], default: int, maximum: int) -> int:
 
 def format_positions(snapshot: AccountSnapshot) -> str:
     lines = [
-        f"Positions for {short_wallet(snapshot.user)}",
-        f"Account value: ${snapshot.account_value:,.2f}",
-        f"Margin used: ${snapshot.total_margin_used:,.2f}",
-        f"Unrealized PnL: ${snapshot.unrealized_pnl:,.2f}",
+        f"仓位：{short_wallet(snapshot.user)}",
+        f"账户价值：${snapshot.account_value:,.2f}",
+        f"保证金使用：${snapshot.total_margin_used:,.2f}",
+        f"未实现盈亏：${snapshot.unrealized_pnl:,.2f}",
     ]
 
     if not snapshot.positions:
-        lines.append("No open positions.")
+        lines.append("当前没有开放仓位。")
         return "\n".join(lines)
 
     for position in snapshot.positions:
         distance = position.liquidation_distance_percent
         distance_text = "-" if distance is None else f"{distance:.2f}%"
         lines.append(
-            f"- {position.coin} {position.side} size {position.size:g}, "
-            f"value ${position.position_value:,.2f}, PnL ${position.unrealized_pnl:,.2f}, "
-            f"liq distance {distance_text}"
+            f"- {position.coin} {translate_side(position.side)} 数量 {position.size:g}，"
+            f"价值 ${position.position_value:,.2f}，盈亏 ${position.unrealized_pnl:,.2f}，"
+            f"强平距离 {distance_text}"
         )
     return "\n".join(lines)
 
@@ -458,22 +463,22 @@ def format_wallet_summary(summary: dict) -> str:
     latest = summary.get("latest")
     deltas = summary.get("deltas")
     lines = [
-        f"Wallet summary for {short_wallet(summary['user'])}",
-        f"Window: {summary['hours']}h",
-        f"Snapshots: {summary['snapshot_count']} in window, {summary['total_snapshot_count']} total",
-        f"Enough trend data: {'yes' if summary['data_sufficient'] else 'no'}",
+        f"钱包摘要：{short_wallet(summary['user'])}",
+        f"窗口：{summary['hours']} 小时",
+        f"快照：窗口内 {summary['snapshot_count']} 条，总计 {summary['total_snapshot_count']} 条",
+        f"趋势数据：{'充足' if summary['data_sufficient'] else '不足'}",
     ]
     if not latest:
-        lines.append("No snapshots yet. Run /refreshwallets or /positions 0x... first.")
+        lines.append("暂无快照。请先执行 /refreshwallets 或 /positions 0x...。")
         return "\n".join(lines)
 
     lines.extend(
         [
-            f"Latest: {latest['captured_at']}",
-            f"Account value: ${latest['account_value']:,.2f}",
-            f"Position value: ${latest['total_position_value']:,.2f}",
-            f"Unrealized PnL: ${latest['unrealized_pnl']:,.2f}",
-            f"Positions: {latest['position_count']}",
+            f"最新时间：{latest['captured_at']}",
+            f"账户价值：${latest['account_value']:,.2f}",
+            f"仓位价值：${latest['total_position_value']:,.2f}",
+            f"未实现盈亏：${latest['unrealized_pnl']:,.2f}",
+            f"持仓数量：{latest['position_count']}",
         ]
     )
     risk = summary.get("risk") or {}
@@ -481,22 +486,52 @@ def format_wallet_summary(summary: dict) -> str:
     if nearest:
         lines.extend(
             [
-                "Risk:",
-                f"- Nearest liquidation: {nearest['coin']} {nearest['side']} {nearest['distance_percent']:.2f}%",
-                f"- Position value: ${nearest['position_value']:,.2f}",
+                "风险：",
+                f"- 最近强平距离：{nearest['coin']} {translate_side(nearest['side'])} {nearest['distance_percent']:.2f}%",
+                f"- 仓位价值：${nearest['position_value']:,.2f}",
             ]
         )
     else:
-        lines.append("Risk: no open position with liquidation distance.")
-    lines.append(f"Recent changes: {summary.get('recent_change_count', 0)}")
+        lines.append("风险：当前没有可计算强平距离的开放仓位。")
+    lines.append(f"最近仓位变化：{summary.get('recent_change_count', 0)}")
     if deltas and summary["data_sufficient"]:
         lines.extend(
             [
-                "Deltas:",
-                f"- Account value: ${deltas['account_value']:,.2f}",
-                f"- Position value: ${deltas['total_position_value']:,.2f}",
-                f"- Margin used: ${deltas['total_margin_used']:,.2f}",
-                f"- Unrealized PnL: ${deltas['unrealized_pnl']:,.2f}",
+                "窗口变化：",
+                f"- 账户价值：${deltas['account_value']:,.2f}",
+                f"- 仓位价值：${deltas['total_position_value']:,.2f}",
+                f"- 保证金使用：${deltas['total_margin_used']:,.2f}",
+                f"- 未实现盈亏：${deltas['unrealized_pnl']:,.2f}",
             ]
         )
     return "\n".join(lines)
+
+
+def translate_side(value: object) -> str:
+    side = str(value or "").lower()
+    if side == "long":
+        return "多头"
+    if side == "short":
+        return "空头"
+    return str(value or "-")
+
+
+def translate_severity(value: object) -> str:
+    severity = str(value or "").lower()
+    return {
+        "critical": "严重",
+        "warning": "警告",
+        "normal": "正常",
+        "info": "信息",
+    }.get(severity, str(value or "-"))
+
+
+def translate_change_type(value: object) -> str:
+    change_type = str(value or "").lower()
+    return {
+        "opened": "开仓",
+        "closed": "平仓",
+        "increased": "加仓",
+        "reduced": "减仓",
+        "flipped": "反手",
+    }.get(change_type, str(value or "-"))
