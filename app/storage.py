@@ -166,6 +166,42 @@ class Storage:
                 return None
             return normalize_snapshot(user, json.loads(row["raw_json"]), liquidation_threshold)
 
+    async def latest_any_snapshot(self, liquidation_threshold: float) -> AccountSnapshot | None:
+        async with aiosqlite.connect(self.database_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                """
+                select user, raw_json
+                from snapshots
+                order by id desc
+                limit 1
+                """
+            )
+            row = await cursor.fetchone()
+            if row is None:
+                return None
+            return normalize_snapshot(row["user"], json.loads(row["raw_json"]), liquidation_threshold)
+
+    async def largest_position_value_wallet(self) -> dict | None:
+        async with aiosqlite.connect(self.database_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                """
+                select s.user, s.captured_at, s.account_value, s.total_position_value,
+                       s.total_margin_used, s.unrealized_pnl
+                from snapshots s
+                join (
+                    select user, max(id) as latest_id
+                    from snapshots
+                    group by user
+                ) latest on latest.latest_id = s.id
+                order by s.total_position_value desc
+                limit 1
+                """
+            )
+            row = await cursor.fetchone()
+            return dict(row) if row else None
+
     async def save_position_changes(self, changes: list[PositionChange]) -> None:
         if not changes:
             return
