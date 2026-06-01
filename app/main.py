@@ -13,6 +13,7 @@ from app.models import HyperliquidStateRequest
 from app.notifier import TelegramNotifier
 from app.risk import liquidation_alerts, normalize_snapshot, position_changes
 from app.storage import Storage
+from app.telegram_bot import TelegramCommandBot
 
 settings = get_settings()
 storage = Storage(settings.database_path)
@@ -43,6 +44,9 @@ async def process_wallet_state(user: str, endpoint: str | None = None, dex: str 
     }
 
 
+command_bot = TelegramCommandBot(settings, storage, process_wallet_state)
+
+
 async def monitor_loop() -> None:
     while True:
         for wallet in settings.watched_wallets:
@@ -57,7 +61,9 @@ async def monitor_loop() -> None:
 async def lifespan(_: FastAPI):
     await storage.init()
     task = asyncio.create_task(monitor_loop()) if settings.watched_wallets else None
+    await command_bot.start()
     yield
+    await command_bot.stop()
     if task:
         task.cancel()
 
