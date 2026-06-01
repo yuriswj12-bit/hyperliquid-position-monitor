@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 
 $repo = "yuriswj12-bit/hyperliquid-position-monitor"
 $branch = "codex/mvp-hyperdress-monitor"
-$message = "Add Telegram AI analyst"
+$message = "Add database watchlist"
 $files = @(
   ".env.example",
   "README.md",
