@@ -48,7 +48,7 @@ The AI layer must not invent market or wallet data. It should call local tools b
 
 - Fetch Hyperliquid `userFills` for a wallet.
 - Store fills in SQLite with de-duplication by fill identity.
-- Query compact grouped fills reports through API-backed Telegram and AI tools, defaulting to 10 fills plus summary totals.
+- Query Chinese compact grouped fills reports through API-backed Telegram and AI tools, defaulting to 10 fills plus summary totals.
 - Use fills to answer "recent trades" questions separately from snapshot diff events.
 
 ### Wallet History Summary
