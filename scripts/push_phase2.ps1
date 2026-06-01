@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 
 $repo = "yuriswj12-bit/hyperliquid-position-monitor"
 $branch = "codex/mvp-hyperdress-monitor"
-$message = "Localize fills reports"
+$message = "Add release check scripts"
 $files = @(
   ".env.example",
   "README.md",
@@ -18,6 +18,10 @@ $files = @(
   "public/index.html",
   "public/app.js",
   "public/styles.css",
+  "scripts/check.ps1",
+  "scripts/smoke.ps1",
+  "scripts/dev.ps1",
+  "scripts/dev.sh",
   "scripts/push_phase2.ps1"
 )
 
