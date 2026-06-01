@@ -85,6 +85,7 @@ After the service starts, the bot supports:
 - `/changes`: recent position changes.
 - `/top`: wallet with the largest latest position value among stored snapshots.
 - `/summary <wallet> [hours]`: stored snapshot summary, risk overview, and trend-readiness for one wallet.
+- `/report <wallet> [hours]`: formatted Chinese risk report with rounded money and percentage values.
 - `/wallets`: database watchlist.
 - `/addwallet <wallet> <name>`: add or update a watched wallet.
 - `/removewallet <wallet>`: remove a watched wallet.
