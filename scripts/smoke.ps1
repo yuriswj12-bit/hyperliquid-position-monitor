@@ -35,6 +35,10 @@ if (-not $health.ok) {
   throw "Health check failed."
 }
 Write-Host "Health ok: $($health.app)"
+if ($null -eq $health.monitor) {
+  throw "Health response is missing monitor status."
+}
+Write-Host "Monitor running: $($health.monitor.monitor_running); last ok: $($health.monitor.last_monitor_ok_at)"
 
 Write-Host "Checking watchlist..."
 $wallets = Invoke-Json -Method "GET" -Url "$BaseUrl/api/watched-wallets"
