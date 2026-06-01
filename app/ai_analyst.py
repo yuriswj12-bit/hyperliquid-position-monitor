@@ -6,6 +6,7 @@ import httpx
 
 from app.config import Settings
 from app.models import AccountSnapshot, WatchedWalletRequest
+from app.reporting import wallet_report
 from app.storage import Storage
 
 RefreshCallback = Callable[[str], Awaitable[dict]]
@@ -38,6 +39,9 @@ class AIAnalyst:
                     "For watchlist/list monitored wallets questions, call list_watched_wallets. "
                     "For refresh/update all monitored wallets questions, call refresh_watched_wallets. "
                     "For wallet report, risk summary, history, trend, enough data, or summary questions with a wallet address, call get_wallet_summary. "
+                    "If a tool returns a preformatted report, preserve its numbers and structure. "
+                    "Format money with commas and 2 decimals, percentages with 2 decimals, and avoid long raw floats. "
+                    "Do not give generic trading advice; focus on observed data, risk distance, changes, and data quality. "
                     "For requests to add or remove monitored wallets, call add_watched_wallet or remove_watched_wallet. "
                     "For position questions with a wallet address, call refresh_wallet_state. "
                     "For position questions without a wallet address, call get_latest_positions. "
@@ -104,12 +108,11 @@ class AIAnalyst:
         if name == "get_recent_changes":
             return {"changes": await self.storage.recent_position_changes(limit_int(arguments.get("limit"), 10))}
         if name == "get_wallet_summary":
-            return {
-                "summary": await self.storage.wallet_summary(
-                    arguments["wallet"],
-                    limit_int(arguments.get("hours"), 24),
-                )
-            }
+            summary = await self.storage.wallet_summary(
+                arguments["wallet"],
+                limit_int(arguments.get("hours"), 24),
+            )
+            return {"summary": summary, "report": wallet_report(summary)}
         if name == "get_wallet_position_changes":
             return {
                 "changes": await self.storage.wallet_position_changes(
