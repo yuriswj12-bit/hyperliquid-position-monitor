@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     app_name: str = "Hyperdress.AI"
     host: str = "127.0.0.1"
     port: int = 8000
+    log_level: str = "INFO"
     database_url: str = "data/hyperdress.db"
     hyperliquid_info_url: str = "https://api.hyperliquid.xyz/info"
     monitor_interval_seconds: int = Field(default=15, ge=5, le=3600)
