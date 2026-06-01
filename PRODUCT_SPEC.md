@@ -44,6 +44,12 @@ The AI layer must not invent market or wallet data. It should call local tools b
 - Use `POSITION_CHANGE_ALERT_PERCENT` to control increased/reduced sensitivity.
 - Store position-change events in SQLite for Telegram and AI analysis.
 
+### Wallet History Summary
+
+- Summarize stored snapshots for one wallet over a configurable time window.
+- Report snapshot count, total stored snapshots, latest account metrics, and first-to-latest deltas.
+- Explicitly mark whether there are at least two snapshots in the window, so AI can avoid overclaiming trends when data is sparse.
+
 ### Web Dashboard
 
 - Query a wallet from the browser.
@@ -56,6 +62,7 @@ The AI layer must not invent market or wallet data. It should call local tools b
 - Enable with `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`.
 - Send concise liquidation-risk alerts.
 - Support command queries: `/status`, `/positions`, `/alerts`, `/changes`, `/top`.
+- Support history summary query: `/summary <wallet> [hours]`.
 - Support watchlist commands: `/wallets`, `/addwallet`, `/removewallet`.
 - Support manual watchlist refresh with `/refreshwallets`.
 - Support natural-language questions through the AI analyst when configured.
@@ -73,6 +80,7 @@ The AI layer must not invent market or wallet data. It should call local tools b
   - wallet with largest latest position value
   - watched-wallet list management
   - watchlist data refresh
+  - wallet history summary and data sufficiency
 - The final reply should be short, fact-based, and in the user's language.
 
 ## Non-MVP Scope
