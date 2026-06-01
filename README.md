@@ -87,6 +87,7 @@ After the service starts, the bot supports:
 - `/wallets`: database watchlist.
 - `/addwallet <wallet> <name>`: add or update a watched wallet.
 - `/removewallet <wallet>`: remove a watched wallet.
+- `/refreshwallets`: immediately refresh every configured and database watchlist wallet.
 
 ## AI Analyst
 
@@ -125,6 +126,7 @@ If the AI call fails or is disabled, the bot falls back to keyword command routi
 - `GET /api/position-changes`: recent position-change events.
 - `GET /api/watched-wallets`: list database watchlist wallets.
 - `POST /api/watched-wallets`: add or update a wallet.
+- `POST /api/watched-wallets/refresh`: immediately collect fresh Hyperliquid snapshots for all active wallets.
 - `DELETE /api/watched-wallets/{user}`: remove a wallet.
 
 Request body for `POST /api/info` and `POST /api/state`:
