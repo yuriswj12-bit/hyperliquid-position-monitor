@@ -36,6 +36,7 @@ class AIAnalyst:
                     "For position-change questions, call get_recent_changes. "
                     "For largest/top wallet questions, call get_top_wallet_by_position_value. "
                     "For watchlist/list monitored wallets questions, call list_watched_wallets. "
+                    "For refresh/update all monitored wallets questions, call refresh_watched_wallets. "
                     "For requests to add or remove monitored wallets, call add_watched_wallet or remove_watched_wallet. "
                     "For position questions with a wallet address, call refresh_wallet_state. "
                     "For position questions without a wallet address, call get_latest_positions. "
@@ -105,6 +106,29 @@ class AIAnalyst:
             return {"top_wallet": await self.storage.largest_position_value_wallet()}
         if name == "list_watched_wallets":
             return {"wallets": await self.storage.list_watched_wallets()}
+        if name == "refresh_watched_wallets":
+            wallets = await self.storage.active_wallet_addresses(self.settings.watched_wallets)
+            results = []
+            for wallet in wallets:
+                try:
+                    result = await self.refresh_callback(wallet)
+                    results.append(
+                        {
+                            "user": wallet,
+                            "ok": True,
+                            "positions": len(result["snapshot"].get("positions", [])),
+                            "changes": len(result["changes"]),
+                            "alerts": len(result["alerts"]),
+                        }
+                    )
+                except Exception as error:
+                    results.append({"user": wallet, "ok": False, "error": str(error)})
+            return {
+                "wallet_count": len(wallets),
+                "success_count": sum(1 for result in results if result["ok"]),
+                "failure_count": sum(1 for result in results if not result["ok"]),
+                "results": results,
+            }
         if name == "add_watched_wallet":
             wallet = WatchedWalletRequest(
                 user=arguments["wallet"],
@@ -210,6 +234,14 @@ TOOL_SCHEMAS = [
         "function": {
             "name": "list_watched_wallets",
             "description": "List database watchlist wallets with names, tags, notes, and timestamps.",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "refresh_watched_wallets",
+            "description": "Refresh every configured and database watchlist wallet from Hyperliquid, then save snapshots, alerts, and position changes.",
             "parameters": {"type": "object", "properties": {}},
         },
     },
