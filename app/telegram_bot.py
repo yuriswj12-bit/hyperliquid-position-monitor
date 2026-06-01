@@ -6,7 +6,7 @@ from telegram.ext import Application, ApplicationBuilder, CommandHandler, Contex
 
 from app.config import Settings
 from app.models import AccountSnapshot, WatchedWalletRequest
-from app.reporting import wallet_report
+from app.reporting import fills_report, wallet_report
 from app.storage import Storage
 
 RefreshCallback = Callable[[str], Awaitable[dict]]
@@ -146,9 +146,9 @@ class TelegramCommandBot:
             await self.reply(update, "Usage: /fills 0x... [limit]")
             return
 
-        limit = parse_limit(context.args[1:], default=10, maximum=30)
+        limit = parse_limit(context.args[1:], default=10, maximum=20)
         fills = await self.storage.recent_fills(context.args[0], limit)
-        await self.reply(update, format_fills(context.args[0], fills))
+        await self.reply(update, fills_report(context.args[0], fills, limit))
 
     async def refresh_fills_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not context.args or not is_wallet(context.args[0]):
@@ -167,7 +167,7 @@ class TelegramCommandBot:
         await self.reply(
             update,
             f"Fetched {result['fetched_count']} fills, saved {result['saved_count']} new fills.\n\n"
-            f"{format_fills(context.args[0], fills)}",
+            f"{fills_report(context.args[0], fills, 10)}",
         )
 
     async def add_wallet_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -497,16 +497,3 @@ def format_wallet_summary(summary: dict) -> str:
         )
     return "\n".join(lines)
 
-
-def format_fills(user: str, fills: list[dict]) -> str:
-    if not fills:
-        return f"No fills stored for {short_wallet(user)}. Try /refreshfills {user}"
-
-    lines = [f"Recent fills for {short_wallet(user)}"]
-    for fill in fills[:30]:
-        lines.append(
-            f"- {fill.get('coin') or '-'} {fill.get('side') or fill.get('dir') or '-'} "
-            f"sz {fill.get('sz') or 0:g} @ {fill.get('px') or 0:g}, "
-            f"pnl ${fill.get('closed_pnl') or 0:,.2f}, fee ${fill.get('fee') or 0:,.2f}"
-        )
-    return "\n".join(lines)
