@@ -330,7 +330,9 @@ class Storage:
             "first": compact_snapshot_row(first),
             "latest": compact_snapshot_row(latest),
             "deltas": snapshot_deltas(first, latest),
+            "risk": risk_summary(latest),
             "recent_changes": recent_changes,
+            "recent_change_count": len(recent_changes),
         }
 
     async def wallet_position_changes(self, user: str, limit: int = 20) -> list[dict]:
@@ -457,3 +459,61 @@ def snapshot_deltas(first: dict | None, latest: dict | None) -> dict | None:
         "total_margin_used": latest["total_margin_used"] - first["total_margin_used"],
         "unrealized_pnl": latest["unrealized_pnl"] - first["unrealized_pnl"],
     }
+
+
+def risk_summary(row: dict | None) -> dict:
+    if row is None:
+        return {"position_count": 0, "nearest_liquidation_distance_percent": None, "nearest_liquidation_position": None}
+
+    raw = json.loads(row["raw_json"])
+    positions = raw.get("assetPositions") or []
+    nearest = None
+    for item in positions:
+        position = item.get("position") or {}
+        distance = liquidation_distance_percent(position)
+        if distance is None:
+            continue
+        candidate = {
+            "coin": position.get("coin"),
+            "side": "long" if float_or_zero(position.get("szi")) >= 0 else "short",
+            "distance_percent": distance,
+            "liquidation_px": float_or_none(position.get("liquidationPx")),
+            "position_value": float_or_zero(position.get("positionValue")),
+            "unrealized_pnl": float_or_zero(position.get("unrealizedPnl")),
+        }
+        if nearest is None or candidate["distance_percent"] < nearest["distance_percent"]:
+            nearest = candidate
+
+    return {
+        "position_count": len(positions),
+        "nearest_liquidation_distance_percent": None if nearest is None else nearest["distance_percent"],
+        "nearest_liquidation_position": nearest,
+    }
+
+
+def liquidation_distance_percent(position: dict) -> float | None:
+    liquidation_px = float_or_none(position.get("liquidationPx"))
+    size = abs(float_or_zero(position.get("szi")))
+    position_value = float_or_zero(position.get("positionValue"))
+    mark = position_value / size if size else None
+    if not liquidation_px or not mark:
+        return None
+    is_long = float_or_zero(position.get("szi")) >= 0
+    distance = ((mark - liquidation_px) / mark) * 100 if is_long else ((liquidation_px - mark) / mark) * 100
+    return distance if distance >= 0 else None
+
+
+def float_or_zero(value: object) -> float:
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def float_or_none(value: object) -> float | None:
+    try:
+        if value in (None, ""):
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
