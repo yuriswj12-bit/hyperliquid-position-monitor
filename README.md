@@ -11,6 +11,7 @@ Hyperdress.AI 是一个面向 Hyperliquid 的异常地址监控工具，核心�
 - SQLite 保存仓位快照与告警事件
 - 仓位变化 diff：新开、加仓、减仓、平仓、翻转
 - 告警冷却去重，避免 Telegram 重复刷屏
+- Telegram 命令查询：`/status`、`/positions`、`/alerts`、`/changes`
 - 可选 Telegram 告警
 - Docker 部署骨架
 
@@ -60,6 +61,23 @@ http://127.0.0.1:8000
 cp .env.example .env
 docker compose up --build
 ```
+
+## Telegram
+
+配置 `.env`：
+
+```text
+TELEGRAM_BOT_TOKEN=your_bot_token
+TELEGRAM_CHAT_ID=your_chat_id
+```
+
+启动服务后，bot 支持：
+
+- `/status`：查看监控配置
+- `/positions <wallet>`：即时刷新并查询某个钱包当前仓位
+- `/positions`：查询 `WATCHED_WALLETS` 中第一个地址的最近快照
+- `/alerts`：最近风险告警
+- `/changes`：最近仓位变化
 
 ## 配置
 
