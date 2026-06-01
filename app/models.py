@@ -19,6 +19,11 @@ class HyperliquidStateRequest(WalletRequest):
     dex: str | None = None
 
 
+class HyperliquidFillsRequest(WalletRequest):
+    endpoint: str | None = None
+    aggregate_by_time: bool = True
+
+
 class PositionRisk(BaseModel):
     coin: str
     side: str
