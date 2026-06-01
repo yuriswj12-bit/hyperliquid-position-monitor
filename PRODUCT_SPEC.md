@@ -44,6 +44,7 @@ Hyperdress.AI 的 MVP 目标是稳定监控 Hyperliquid 上的一组重点地址
 
 - 配置 `TELEGRAM_BOT_TOKEN` 与 `TELEGRAM_CHAT_ID` 后启用
 - 对强平距离告警发送简洁文本消息
+- 支持 `/status`、`/positions`、`/alerts`、`/changes` 命令查询
 
 ## 非 MVP 范围
 
