@@ -41,6 +41,34 @@
         <button id="startButton" class="primary-button" type="button">Start</button>
       </section>
 
+      <section class="watchlist-panel" aria-label="Watchlist">
+        <div class="watchlist-head">
+          <div>
+            <h2>Watchlist</h2>
+            <span>Database-backed monitored wallets</span>
+          </div>
+          <button id="reloadWalletsButton" class="ghost-button" type="button">Reload</button>
+        </div>
+        <div class="watchlist-form">
+          <label class="field wallet-field">
+            <span>Wallet</span>
+            <input id="watchWalletInput" autocomplete="off" spellcheck="false" placeholder="0x..." />
+          </label>
+          <label class="field">
+            <span>Name</span>
+            <input id="watchNameInput" autocomplete="off" placeholder="Whale A" />
+          </label>
+          <label class="field">
+            <span>Tags</span>
+            <input id="watchTagsInput" autocomplete="off" placeholder="eth, short" />
+          </label>
+          <button id="addWalletButton" class="primary-button" type="button">Add</button>
+        </div>
+        <div id="watchlist" class="watchlist">
+          <div class="quiet">No database watchlist wallets yet.</div>
+        </div>
+      </section>
+
       <section class="summary-grid" aria-label="Account summary">
         <article class="metric">
           <span>Account Value</span>
@@ -118,6 +146,6 @@
       </section>
     </main>
 
-    <script src="./app.js?v=20260531"></script>
+    <script src="./app.js?v=20260601"></script>
   </body>
 </html>
