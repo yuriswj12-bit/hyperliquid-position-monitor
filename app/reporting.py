@@ -63,22 +63,52 @@ def fills_report(user: str, fills: list[dict], limit: int = 10) -> str:
     total_fee = sum(float_or_zero(fill.get("fee")) for fill in visible)
     total_closed_pnl = sum(float_or_zero(fill.get("closed_pnl")) for fill in visible)
     coins = ", ".join(sorted({str(fill.get("coin")) for fill in visible if fill.get("coin")}))
+    groups = grouped_fills(visible)
 
     lines = [
         f"Recent fills: {short_wallet(user)}",
-        f"Showing {len(visible)} fills. Coins: {coins or '-'}",
+        f"Showing {len(visible)} fills in {len(groups)} groups. Coins: {coins or '-'}",
         f"Total size: {number(total_size, 6)} | Fees: {money(total_fee)} | Closed PnL: {money(total_closed_pnl)}",
         "",
     ]
 
-    for fill in visible:
-        direction = fill.get("dir") or fill.get("side") or "-"
+    for group in groups:
         lines.append(
-            f"- {format_time(fill.get('time'))} | {fill.get('coin') or '-'} {direction} | "
-            f"sz {number(fill.get('sz'), 6)} @ {number(fill.get('px'), 2)} | "
-            f"fee {money(fill.get('fee'))} | pnl {money(fill.get('closed_pnl'))}"
+            f"- {group['time']} | {group['coin']} {group['direction']} | "
+            f"{group['count']} fills | sz {number(group['size'], 6)} @ {number(group['price'], 2)} | "
+            f"fee {money(group['fee'])} | pnl {money(group['closed_pnl'])}"
         )
     return "\n".join(lines)
+
+
+def grouped_fills(fills: list[dict]) -> list[dict]:
+    groups: dict[tuple, dict] = {}
+    order: list[tuple] = []
+    for fill in fills:
+        timestamp = second_timestamp(fill.get("time"))
+        key = (
+            timestamp,
+            fill.get("coin") or "-",
+            fill.get("dir") or fill.get("side") or "-",
+            round(float_or_zero(fill.get("px")), 8),
+        )
+        if key not in groups:
+            groups[key] = {
+                "time": format_time(timestamp),
+                "coin": key[1],
+                "direction": key[2],
+                "price": key[3],
+                "count": 0,
+                "size": 0.0,
+                "fee": 0.0,
+                "closed_pnl": 0.0,
+            }
+            order.append(key)
+        groups[key]["count"] += 1
+        groups[key]["size"] += float_or_zero(fill.get("sz"))
+        groups[key]["fee"] += float_or_zero(fill.get("fee"))
+        groups[key]["closed_pnl"] += float_or_zero(fill.get("closed_pnl"))
+    return [groups[key] for key in order]
 
 
 def short_wallet(wallet: str) -> str:
@@ -110,6 +140,13 @@ def format_time(value: object) -> str:
     if timestamp > 10_000_000_000:
         timestamp = timestamp / 1000
     return datetime.fromtimestamp(timestamp, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+
+def second_timestamp(value: object) -> int:
+    timestamp = float_or_zero(value)
+    if timestamp > 10_000_000_000:
+        timestamp = timestamp / 1000
+    return int(timestamp)
 
 
 def float_or_zero(value: object) -> float:
