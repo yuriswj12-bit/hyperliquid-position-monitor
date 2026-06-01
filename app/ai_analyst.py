@@ -6,7 +6,7 @@ import httpx
 
 from app.config import Settings
 from app.models import AccountSnapshot, WatchedWalletRequest
-from app.reporting import wallet_report
+from app.reporting import fills_report, wallet_report
 from app.storage import Storage
 
 RefreshCallback = Callable[[str], Awaitable[dict]]
@@ -43,12 +43,12 @@ class AIAnalyst:
                     "Use tools before answering factual monitor questions. Do not invent wallet data. "
                     "For alert/risk questions, call get_recent_alerts. "
                     "For position-change questions, call get_recent_changes. "
-                    "For trade/fill questions, call get_recent_fills; if the user asks to refresh fills, call refresh_wallet_fills first. "
+                    "For trade/fill questions, call get_recent_fills with limit 10 unless the user asks for a specific smaller/larger count; if the user asks to refresh fills, call refresh_wallet_fills first. "
                     "For largest/top wallet questions, call get_top_wallet_by_position_value. "
                     "For watchlist/list monitored wallets questions, call list_watched_wallets. "
                     "For refresh/update all monitored wallets questions, call refresh_watched_wallets. "
                     "For wallet report, risk summary, history, trend, enough data, or summary questions with a wallet address, call get_wallet_summary. "
-                    "If a tool returns a preformatted report, preserve its numbers and structure. "
+                    "If a tool returns a preformatted report field, return that report directly or with at most one short leading sentence. Do not expand raw arrays. "
                     "Format money with commas and 2 decimals, percentages with 2 decimals, and avoid long raw floats. "
                     "Do not give generic trading advice; focus on observed data, risk distance, changes, and data quality. "
                     "For requests to add or remove monitored wallets, call add_watched_wallet or remove_watched_wallet. "
@@ -117,16 +117,19 @@ class AIAnalyst:
         if name == "get_recent_changes":
             return {"changes": await self.storage.recent_position_changes(limit_int(arguments.get("limit"), 10))}
         if name == "get_recent_fills":
+            limit = min(20, limit_int(arguments.get("limit"), 10))
+            wallet = arguments.get("wallet")
+            fills = await self.storage.recent_fills(wallet, limit)
             return {
-                "fills": await self.storage.recent_fills(
-                    arguments.get("wallet"),
-                    limit_int(arguments.get("limit"), 20),
-                )
+                "fills": fills,
+                "report": fills_report(wallet or "all", fills, limit),
             }
         if name == "refresh_wallet_fills":
             if not self.fills_callback:
                 return {"error": "fills refresh is not available"}
-            return await self.fills_callback(arguments["wallet"])
+            result = await self.fills_callback(arguments["wallet"])
+            fills = await self.storage.recent_fills(arguments["wallet"], 10)
+            return {**result, "report": fills_report(arguments["wallet"], fills, 10)}
         if name == "get_wallet_summary":
             summary = await self.storage.wallet_summary(
                 arguments["wallet"],
