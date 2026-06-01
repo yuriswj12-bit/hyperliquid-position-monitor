@@ -18,12 +18,15 @@ The AI layer must not invent market or wallet data. It should call local tools b
 - A researcher tracks opened, closed, increased, reduced, or flipped positions.
 - A team receives high-risk Telegram alerts.
 - A user asks natural-language questions such as "最近仓位价值最大的地址是谁" or "这个地址有没有接近强平".
+- A user manages a named watchlist instead of editing `.env` for every address change.
 
 ## MVP Scope
 
 ### Wallet Monitoring
 
 - Configure one or more `0x` wallet addresses.
+- Add, update, list, and remove database-backed watched wallets.
+- Store wallet name, tags, notes, and timestamps.
 - Poll Hyperliquid `clearinghouseState`.
 - Store account value, position value, margin usage, withdrawable balance, unrealized PnL, and raw response data.
 
@@ -53,6 +56,7 @@ The AI layer must not invent market or wallet data. It should call local tools b
 - Enable with `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`.
 - Send concise liquidation-risk alerts.
 - Support command queries: `/status`, `/positions`, `/alerts`, `/changes`, `/top`.
+- Support watchlist commands: `/wallets`, `/addwallet`, `/removewallet`.
 - Support natural-language questions through the AI analyst when configured.
 - Fall back to keyword routing if AI is disabled or unavailable.
 
@@ -66,6 +70,7 @@ The AI layer must not invent market or wallet data. It should call local tools b
   - recent alerts
   - recent position changes
   - wallet with largest latest position value
+  - watched-wallet list management
 - The final reply should be short, fact-based, and in the user's language.
 
 ## Non-MVP Scope
@@ -111,10 +116,20 @@ The AI layer must not invent market or wallet data. It should call local tools b
 - `message`
 - `created_at`
 
+### Watched Wallet
+
+- `user`
+- `name`
+- `tags`
+- `notes`
+- `created_at`
+- `updated_at`
+
 ## Roadmap
 
-1. Wallet groups and labels.
-2. More Telegram report templates.
-3. AI memory over saved snapshots and changes.
-4. WebSocket data source for lower latency.
-5. Deployment health checks and production hosting.
+1. Wallet groups and richer labels.
+2. Per-wallet historical summaries.
+3. More Telegram report templates.
+4. AI memory over saved snapshots and changes.
+5. WebSocket data source for lower latency.
+6. Deployment health checks and production hosting.
