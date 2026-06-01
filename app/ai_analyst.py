@@ -10,13 +10,21 @@ from app.reporting import wallet_report
 from app.storage import Storage
 
 RefreshCallback = Callable[[str], Awaitable[dict]]
+FillsCallback = Callable[[str], Awaitable[dict]]
 
 
 class AIAnalyst:
-    def __init__(self, settings: Settings, storage: Storage, refresh_callback: RefreshCallback) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        storage: Storage,
+        refresh_callback: RefreshCallback,
+        fills_callback: FillsCallback | None = None,
+    ) -> None:
         self.settings = settings
         self.storage = storage
         self.refresh_callback = refresh_callback
+        self.fills_callback = fills_callback
 
     @property
     def enabled(self) -> bool:
@@ -35,6 +43,7 @@ class AIAnalyst:
                     "Use tools before answering factual monitor questions. Do not invent wallet data. "
                     "For alert/risk questions, call get_recent_alerts. "
                     "For position-change questions, call get_recent_changes. "
+                    "For trade/fill questions, call get_recent_fills; if the user asks to refresh fills, call refresh_wallet_fills first. "
                     "For largest/top wallet questions, call get_top_wallet_by_position_value. "
                     "For watchlist/list monitored wallets questions, call list_watched_wallets. "
                     "For refresh/update all monitored wallets questions, call refresh_watched_wallets. "
@@ -107,6 +116,17 @@ class AIAnalyst:
             return {"alerts": await self.storage.recent_alerts(limit_int(arguments.get("limit"), 10))}
         if name == "get_recent_changes":
             return {"changes": await self.storage.recent_position_changes(limit_int(arguments.get("limit"), 10))}
+        if name == "get_recent_fills":
+            return {
+                "fills": await self.storage.recent_fills(
+                    arguments.get("wallet"),
+                    limit_int(arguments.get("limit"), 20),
+                )
+            }
+        if name == "refresh_wallet_fills":
+            if not self.fills_callback:
+                return {"error": "fills refresh is not available"}
+            return await self.fills_callback(arguments["wallet"])
         if name == "get_wallet_summary":
             summary = await self.storage.wallet_summary(
                 arguments["wallet"],
@@ -236,6 +256,34 @@ TOOL_SCHEMAS = [
                 "properties": {
                     "limit": {"type": "integer", "minimum": 1, "maximum": 50},
                 },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_recent_fills",
+            "description": "Get stored recent Hyperliquid user fills. If wallet is omitted, return recent fills across all stored wallets.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "wallet": {"type": "string", "description": "Optional 0x wallet address."},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 100},
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "refresh_wallet_fills",
+            "description": "Fetch fresh Hyperliquid userFills for one wallet and save new fills to SQLite.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "wallet": {"type": "string", "description": "0x wallet address."},
+                },
+                "required": ["wallet"],
             },
         },
     },
