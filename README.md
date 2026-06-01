@@ -1,58 +1,132 @@
 # Hyperdress.AI
 
-Hyperdress.AI 是一个面向 Hyperliquid 的异常地址监控工具，核心目标是把重点钱包的仓位变化、强平风险和异常交易信号变成可读、可追踪、可告警的数据流。
+Hyperdress.AI is a local Hyperliquid position monitor. It tracks watched wallets, stores snapshots in SQLite, detects liquidation-risk alerts and position changes, and answers Telegram questions through command mode or an optional AI analyst.
 
-当前 MVP 包含：
+Current MVP:
 
-- 任意钱包地址的 Hyperliquid 永续仓位监控
-- 本地 Web 面板展示账户权益、保证金、未实现盈亏、仓位方向、杠杆、强平价和强平距离
-- 风险阈值配置与强平距离告警
-- FastAPI 后端代理 Hyperliquid Info API，避免浏览器 CORS 问题
-- SQLite 保存仓位快照与告警事件
-- 仓位变化 diff：新开、加仓、减仓、平仓、翻转
-- 告警冷却去重，避免 Telegram 重复刷屏
-- Telegram 命令查询：`/status`、`/positions`、`/alerts`、`/changes`
-- 可选 Telegram 告警
-- Docker 部署骨架
+- Monitor any Hyperliquid `0x` wallet.
+- Local web dashboard for account value, margin, PnL, open positions, liquidation price, and liquidation distance.
+- FastAPI backend proxy for Hyperliquid Info API.
+- SQLite snapshots, alerts, and position-change history.
+- Position diff detection: opened, closed, increased, reduced, and flipped.
+- Alert cooldown to avoid repeated Telegram spam.
+- Telegram commands: `/status`, `/positions`, `/alerts`, `/changes`, `/top`.
+- Optional Telegram natural-language analyst through Groq's OpenAI-compatible API.
+- Docker deployment skeleton.
 
-## 快速开始
+## Quick Start
 
-也可以直接使用脚本：
+PowerShell:
 
 ```powershell
 .\scripts\dev.ps1
 ```
 
-或 macOS/Linux：
+macOS/Linux:
 
 ```bash
 ./scripts/dev.sh
 ```
 
-手动启动：
+Manual start:
 
 ```bash
-python -m venv venv
-source venv/bin/activate
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Windows PowerShell：
-
-```powershell
-python -m venv venv
-.\venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-Copy-Item .env.example .env
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-```
-
-打开：
+Open:
 
 ```text
 http://127.0.0.1:8000
+```
+
+## Configuration
+
+Copy `.env.example` to `.env`, then fill the values you need:
+
+```text
+HYPERLIQUID_INFO_URL=https://api.hyperliquid.xyz/info
+MONITOR_INTERVAL_SECONDS=15
+LIQUIDATION_ALERT_PERCENT=12
+POSITION_CHANGE_ALERT_PERCENT=25
+ALERT_COOLDOWN_SECONDS=900
+WATCHED_WALLETS=[]
+```
+
+`WATCHED_WALLETS` uses JSON array format:
+
+```text
+WATCHED_WALLETS=["0x0000000000000000000000000000000000000000"]
+```
+
+## Telegram
+
+Set these in `.env`:
+
+```text
+TELEGRAM_BOT_TOKEN=your_bot_token
+TELEGRAM_CHAT_ID=your_chat_id
+TELEGRAM_PROXY_URL=http://127.0.0.1:7897
+```
+
+`TELEGRAM_PROXY_URL` is optional, but useful when `api.telegram.org` is not reachable directly.
+
+After the service starts, the bot supports:
+
+- `/status`: monitor configuration and AI status.
+- `/positions <wallet>`: refresh and show one wallet's current positions.
+- `/positions`: show the latest configured or stored wallet snapshot.
+- `/alerts`: recent risk alerts.
+- `/changes`: recent position changes.
+- `/top`: wallet with the largest latest position value among stored snapshots.
+
+## AI Analyst
+
+For a free transition path, use Groq:
+
+```text
+AI_PROVIDER=groq
+GROQ_API_KEY=your_groq_api_key
+GROQ_MODEL=llama-3.3-70b-versatile
+GROQ_BASE_URL=https://api.groq.com/openai/v1
+AI_PROXY_URL=
+```
+
+When `AI_PROVIDER=groq` and `GROQ_API_KEY` is set, normal Telegram text follows this flow:
+
+```text
+user natural language -> AI intent/tool selection -> SQLite/Hyperliquid tools -> AI final answer
+```
+
+Example Telegram questions:
+
+- `最近告警`
+- `最近变化`
+- `看看最近仓位价值最大的地址`
+- `查一下 0x... 的仓位`
+- `这个地址有没有接近强平 0x...`
+
+If the AI call fails or is disabled, the bot falls back to keyword command routing.
+
+## API
+
+- `GET /api/health`
+- `POST /api/info`: raw Hyperliquid `clearinghouseState` proxy.
+- `POST /api/state`: normalized account snapshot, alerts, and position changes persisted to SQLite.
+- `GET /api/alerts`: recent alert events.
+- `GET /api/position-changes`: recent position-change events.
+
+Request body for `POST /api/info` and `POST /api/state`:
+
+```json
+{
+  "user": "0x...",
+  "endpoint": "https://api.hyperliquid.xyz/info"
+}
 ```
 
 ## Docker
@@ -62,74 +136,21 @@ cp .env.example .env
 docker compose up --build
 ```
 
-## Telegram
-
-配置 `.env`：
-
-```text
-TELEGRAM_BOT_TOKEN=your_bot_token
-TELEGRAM_CHAT_ID=your_chat_id
-```
-
-启动服务后，bot 支持：
-
-- `/status`：查看监控配置
-- `/positions <wallet>`：即时刷新并查询某个钱包当前仓位
-- `/positions`：查询 `WATCHED_WALLETS` 中第一个地址的最近快照
-- `/alerts`：最近风险告警
-- `/changes`：最近仓位变化
-
-## 配置
-
-主要配置项位于 `.env`：
-
-```text
-HYPERLIQUID_INFO_URL=https://api.hyperliquid.xyz/info
-MONITOR_INTERVAL_SECONDS=15
-LIQUIDATION_ALERT_PERCENT=12
-POSITION_CHANGE_ALERT_PERCENT=25
-ALERT_COOLDOWN_SECONDS=900
-WATCHED_WALLETS=[]
-TELEGRAM_BOT_TOKEN=
-TELEGRAM_CHAT_ID=
-```
-
-`WATCHED_WALLETS` 使用 JSON 数组格式，例如：
-
-```text
-WATCHED_WALLETS=["0x0000000000000000000000000000000000000000"]
-```
-
-## API
-
-- `GET /api/health`
-- `POST /api/info`：原始 Hyperliquid `clearinghouseState` 代理
-- `POST /api/state`：归一化账户快照，计算仓位变化，并写入 SQLite
-- `GET /api/alerts`：最近告警事件
-- `GET /api/position-changes`：最近仓位变化事件
-
-`POST /api/info` 和 `POST /api/state` 请求体：
-
-```json
-{
-  "user": "0x...",
-  "endpoint": "https://api.hyperliquid.xyz/info"
-}
-```
-
-## 项目结构
+## Project Structure
 
 ```text
 app/
-  config.py        配置读取
-  hyperliquid.py   Hyperliquid API 客户端
-  main.py          FastAPI 入口与监控循环
-  models.py        数据模型
-  notifier.py      Telegram 通知
-  risk.py          仓位风险计算
-  storage.py       SQLite 存储
+  ai_analyst.py    Groq/OpenAI-compatible tool-calling analyst
+  config.py        environment configuration
+  hyperliquid.py   Hyperliquid API client
+  main.py          FastAPI entrypoint and monitor loop
+  models.py        data models
+  notifier.py      Telegram alert sender
+  risk.py          risk and position-diff logic
+  storage.py       SQLite storage
+  telegram_bot.py  Telegram commands and natural-language entrypoint
 public/
-  index.html       本地监控面板
-  app.js           前端轮询与渲染
-  styles.css       页面样式
+  index.html       local monitor dashboard
+  app.js           frontend polling and rendering
+  styles.css       page styles
 ```
