@@ -52,6 +52,7 @@ class TelegramCommandBot:
             self.application.add_handler(CommandHandler("alerts", self.alerts_command))
             self.application.add_handler(CommandHandler("changes", self.changes_command))
             self.application.add_handler(CommandHandler("top", self.top_command))
+            self.application.add_handler(CommandHandler("summary", self.summary_command))
             self.application.add_handler(CommandHandler("wallets", self.wallets_command))
             self.application.add_handler(CommandHandler("addwallet", self.add_wallet_command))
             self.application.add_handler(CommandHandler("removewallet", self.remove_wallet_command))
@@ -86,6 +87,7 @@ class TelegramCommandBot:
             "/alerts\n"
             "/changes\n"
             "/top\n"
+            "/summary <wallet> [hours]\n"
             "/wallets\n"
             "/addwallet <wallet> <name>\n"
             "/removewallet <wallet>\n"
@@ -262,6 +264,15 @@ class TelegramCommandBot:
             f"Updated: {top['captured_at']}",
         )
 
+    async def summary_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not context.args or not is_wallet(context.args[0]):
+            await self.reply(update, "Usage: /summary 0x... [hours]")
+            return
+
+        hours = parse_limit(context.args[1:], default=24, maximum=720)
+        summary = await self.storage.wallet_summary(context.args[0], hours)
+        await self.reply(update, format_wallet_summary(summary))
+
     async def text_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         text = update.message.text.strip() if update.message and update.message.text else ""
         if not text:
@@ -387,5 +398,40 @@ def format_positions(snapshot: AccountSnapshot) -> str:
             f"- {position.coin} {position.side} size {position.size:g}, "
             f"value ${position.position_value:,.2f}, PnL ${position.unrealized_pnl:,.2f}, "
             f"liq distance {distance_text}"
+        )
+    return "\n".join(lines)
+
+
+def format_wallet_summary(summary: dict) -> str:
+    latest = summary.get("latest")
+    deltas = summary.get("deltas")
+    lines = [
+        f"Wallet summary for {short_wallet(summary['user'])}",
+        f"Window: {summary['hours']}h",
+        f"Snapshots: {summary['snapshot_count']} in window, {summary['total_snapshot_count']} total",
+        f"Enough trend data: {'yes' if summary['data_sufficient'] else 'no'}",
+    ]
+    if not latest:
+        lines.append("No snapshots yet. Run /refreshwallets or /positions 0x... first.")
+        return "\n".join(lines)
+
+    lines.extend(
+        [
+            f"Latest: {latest['captured_at']}",
+            f"Account value: ${latest['account_value']:,.2f}",
+            f"Position value: ${latest['total_position_value']:,.2f}",
+            f"Unrealized PnL: ${latest['unrealized_pnl']:,.2f}",
+            f"Positions: {latest['position_count']}",
+        ]
+    )
+    if deltas and summary["data_sufficient"]:
+        lines.extend(
+            [
+                "Deltas:",
+                f"- Account value: ${deltas['account_value']:,.2f}",
+                f"- Position value: ${deltas['total_position_value']:,.2f}",
+                f"- Margin used: ${deltas['total_margin_used']:,.2f}",
+                f"- Unrealized PnL: ${deltas['unrealized_pnl']:,.2f}",
+            ]
         )
     return "\n".join(lines)
