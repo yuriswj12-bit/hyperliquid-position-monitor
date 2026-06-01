@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from app.ai_analyst import AIAnalyst
 from app.config import get_settings
 from app.hyperliquid import HyperliquidClient
-from app.models import HyperliquidStateRequest, WalletRequest, WatchedWalletRequest
+from app.models import HyperliquidFillsRequest, HyperliquidStateRequest, WalletRequest, WatchedWalletRequest
 from app.notifier import TelegramNotifier
 from app.risk import liquidation_alerts, normalize_snapshot, position_changes
 from app.storage import Storage
@@ -45,12 +45,24 @@ async def process_wallet_state(user: str, endpoint: str | None = None, dex: str 
     }
 
 
+async def process_wallet_fills(user: str, endpoint: str | None = None, aggregate_by_time: bool = True) -> dict:
+    fills = await client.user_fills(user, endpoint, aggregate_by_time)
+    saved_count = await storage.save_fills(user, fills)
+    return {
+        "user": user,
+        "fetched_count": len(fills),
+        "saved_count": saved_count,
+        "fills": fills[:50],
+    }
+
+
 async def refresh_active_wallets() -> dict:
     wallets = await storage.active_wallet_addresses(settings.watched_wallets)
     results = []
     for wallet in wallets:
         try:
             result = await process_wallet_state(wallet)
+            fills_result = await process_wallet_fills(wallet)
             results.append(
                 {
                     "user": wallet,
@@ -58,6 +70,7 @@ async def refresh_active_wallets() -> dict:
                     "positions": len(result["snapshot"].get("positions", [])),
                     "changes": len(result["changes"]),
                     "alerts": len(result["alerts"]),
+                    "fills_saved": fills_result["saved_count"],
                 }
             )
         except Exception as error:
@@ -70,8 +83,8 @@ async def refresh_active_wallets() -> dict:
     }
 
 
-ai_analyst = AIAnalyst(settings, storage, process_wallet_state)
-command_bot = TelegramCommandBot(settings, storage, process_wallet_state, ai_analyst)
+ai_analyst = AIAnalyst(settings, storage, process_wallet_state, process_wallet_fills)
+command_bot = TelegramCommandBot(settings, storage, process_wallet_state, process_wallet_fills, ai_analyst)
 
 
 async def monitor_loop() -> None:
@@ -126,6 +139,14 @@ async def state(request: HyperliquidStateRequest) -> dict:
         raise HTTPException(status_code=502, detail=str(error)) from error
 
 
+@app.post("/api/fills")
+async def fills_proxy(request: HyperliquidFillsRequest) -> dict:
+    try:
+        return await process_wallet_fills(request.user, request.endpoint, request.aggregate_by_time)
+    except Exception as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
+
+
 @app.get("/api/alerts")
 async def alerts(limit: int = 50) -> list[dict]:
     return await storage.recent_alerts(limit)
@@ -134,6 +155,14 @@ async def alerts(limit: int = 50) -> list[dict]:
 @app.get("/api/position-changes")
 async def changes(limit: int = 50) -> list[dict]:
     return await storage.recent_position_changes(limit)
+
+
+@app.get("/api/fills")
+async def recent_fills(user: str | None = None, limit: int = 50) -> list[dict]:
+    if user:
+        request = WalletRequest(user=user)
+        return await storage.recent_fills(request.user, limit)
+    return await storage.recent_fills(None, limit)
 
 
 @app.get("/api/wallets/{user}/summary")
