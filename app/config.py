@@ -17,6 +17,12 @@ class Settings(BaseSettings):
     alert_cooldown_seconds: int = Field(default=900, ge=0, le=86400)
     telegram_bot_token: str | None = None
     telegram_chat_id: str | None = None
+    telegram_proxy_url: str | None = None
+    ai_provider: str = "none"
+    groq_api_key: str | None = None
+    groq_model: str = "llama-3.3-70b-versatile"
+    groq_base_url: str = "https://api.groq.com/openai/v1"
+    ai_proxy_url: str | None = None
     watched_wallets: list[str] = []
 
     model_config = SettingsConfigDict(
