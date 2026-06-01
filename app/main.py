@@ -45,6 +45,31 @@ async def process_wallet_state(user: str, endpoint: str | None = None, dex: str 
     }
 
 
+async def refresh_active_wallets() -> dict:
+    wallets = await storage.active_wallet_addresses(settings.watched_wallets)
+    results = []
+    for wallet in wallets:
+        try:
+            result = await process_wallet_state(wallet)
+            results.append(
+                {
+                    "user": wallet,
+                    "ok": True,
+                    "positions": len(result["snapshot"].get("positions", [])),
+                    "changes": len(result["changes"]),
+                    "alerts": len(result["alerts"]),
+                }
+            )
+        except Exception as error:
+            results.append({"user": wallet, "ok": False, "error": str(error)})
+    return {
+        "wallet_count": len(wallets),
+        "success_count": sum(1 for result in results if result["ok"]),
+        "failure_count": sum(1 for result in results if not result["ok"]),
+        "results": results,
+    }
+
+
 ai_analyst = AIAnalyst(settings, storage, process_wallet_state)
 command_bot = TelegramCommandBot(settings, storage, process_wallet_state, ai_analyst)
 
@@ -119,6 +144,11 @@ async def watched_wallets() -> list[dict]:
 @app.post("/api/watched-wallets")
 async def upsert_watched_wallet(request: WatchedWalletRequest) -> dict:
     return await storage.upsert_watched_wallet(request)
+
+
+@app.post("/api/watched-wallets/refresh")
+async def refresh_watched_wallets() -> dict:
+    return await refresh_active_wallets()
 
 
 @app.delete("/api/watched-wallets/{user}")
