@@ -284,6 +284,72 @@ class Storage:
             row = await cursor.fetchone()
             return dict(row) if row else None
 
+    async def wallet_summary(self, user: str, hours: int = 24) -> dict:
+        cutoff = datetime.now(timezone.utc).timestamp() - max(1, min(hours, 24 * 30)) * 3600
+        async with aiosqlite.connect(self.database_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                """
+                select captured_at, account_value, total_position_value,
+                       total_margin_used, unrealized_pnl, raw_json
+                from snapshots
+                where user = ?
+                order by id asc
+                """,
+                (user,),
+            )
+            all_rows = [dict(row) for row in await cursor.fetchall()]
+
+            period_rows = [
+                row for row in all_rows if datetime.fromisoformat(row["captured_at"]).timestamp() >= cutoff
+            ]
+            rows = period_rows or all_rows[-1:]
+            first = rows[0] if rows else None
+            latest = rows[-1] if rows else None
+
+            changes_cursor = await db.execute(
+                """
+                select coin, change_type, previous_size, current_size,
+                       previous_value, current_value, change_percent, message, created_at
+                from position_changes
+                where user = ?
+                order by id desc
+                limit 20
+                """,
+                (user,),
+            )
+            recent_changes = [dict(row) for row in await changes_cursor.fetchall()]
+
+        return {
+            "user": user,
+            "hours": hours,
+            "snapshot_count": len(rows),
+            "total_snapshot_count": len(all_rows),
+            "has_period_data": bool(period_rows),
+            "data_sufficient": len(rows) >= 2,
+            "first": compact_snapshot_row(first),
+            "latest": compact_snapshot_row(latest),
+            "deltas": snapshot_deltas(first, latest),
+            "recent_changes": recent_changes,
+        }
+
+    async def wallet_position_changes(self, user: str, limit: int = 20) -> list[dict]:
+        async with aiosqlite.connect(self.database_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                """
+                select coin, change_type, previous_size, current_size,
+                       previous_value, current_value, change_percent, message, created_at
+                from position_changes
+                where user = ?
+                order by id desc
+                limit ?
+                """,
+                (user, max(1, min(limit, 100))),
+            )
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+
     async def save_position_changes(self, changes: list[PositionChange]) -> None:
         if not changes:
             return
@@ -364,3 +430,30 @@ def clean_optional(value: str | None) -> str | None:
         return None
     cleaned = value.strip()
     return cleaned or None
+
+
+def compact_snapshot_row(row: dict | None) -> dict | None:
+    if row is None:
+        return None
+    raw = json.loads(row["raw_json"])
+    positions = raw.get("assetPositions") or []
+    return {
+        "captured_at": row["captured_at"],
+        "account_value": row["account_value"],
+        "total_position_value": row["total_position_value"],
+        "total_margin_used": row["total_margin_used"],
+        "unrealized_pnl": row["unrealized_pnl"],
+        "position_count": len(positions),
+        "coins": [item.get("position", {}).get("coin") for item in positions if item.get("position", {}).get("coin")],
+    }
+
+
+def snapshot_deltas(first: dict | None, latest: dict | None) -> dict | None:
+    if first is None or latest is None:
+        return None
+    return {
+        "account_value": latest["account_value"] - first["account_value"],
+        "total_position_value": latest["total_position_value"] - first["total_position_value"],
+        "total_margin_used": latest["total_margin_used"] - first["total_margin_used"],
+        "unrealized_pnl": latest["unrealized_pnl"] - first["unrealized_pnl"],
+    }
