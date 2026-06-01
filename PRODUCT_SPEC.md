@@ -44,6 +44,13 @@ The AI layer must not invent market or wallet data. It should call local tools b
 - Use `POSITION_CHANGE_ALERT_PERCENT` to control increased/reduced sensitivity.
 - Store position-change events in SQLite for Telegram and AI analysis.
 
+### Trade Fills
+
+- Fetch Hyperliquid `userFills` for a wallet.
+- Store fills in SQLite with de-duplication by fill identity.
+- Query recent fills through API, Telegram, and AI tools.
+- Use fills to answer "recent trades" questions separately from snapshot diff events.
+
 ### Wallet History Summary
 
 - Summarize stored snapshots for one wallet over a configurable time window.
@@ -63,6 +70,7 @@ The AI layer must not invent market or wallet data. It should call local tools b
 - Enable with `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`.
 - Send concise liquidation-risk alerts.
 - Support command queries: `/status`, `/positions`, `/alerts`, `/changes`, `/top`.
+- Support fills queries: `/fills <wallet>` and `/refreshfills <wallet>`.
 - Support history summary query: `/summary <wallet> [hours]`.
 - Support formatted risk report query: `/report <wallet> [hours]`.
 - Support watchlist commands: `/wallets`, `/addwallet`, `/removewallet`.
@@ -84,6 +92,7 @@ The AI layer must not invent market or wallet data. It should call local tools b
   - watchlist data refresh
   - wallet history summary and data sufficiency
   - formatted wallet risk report
+  - recent Hyperliquid fills
 - The final reply should be short, fact-based, and in the user's language.
 
 ## Non-MVP Scope
