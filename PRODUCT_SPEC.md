@@ -48,6 +48,7 @@ The AI layer must not invent market or wallet data. It should call local tools b
 
 - Summarize stored snapshots for one wallet over a configurable time window.
 - Report snapshot count, total stored snapshots, latest account metrics, and first-to-latest deltas.
+- Report nearest liquidation distance from the latest open positions when available.
 - Explicitly mark whether there are at least two snapshots in the window, so AI can avoid overclaiming trends when data is sparse.
 
 ### Web Dashboard
