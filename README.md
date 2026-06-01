@@ -1,18 +1,17 @@
 # Hyperdress.AI
 
-Hyperdress.AI is a local Hyperliquid position monitor. It tracks watched wallets, stores snapshots in SQLite, detects liquidation-risk alerts and position changes, and answers Telegram questions through command mode or an optional AI analyst.
+Hyperdress.AI is a local Hyperliquid position monitor. It tracks watched wallets, stores snapshots and fills in SQLite, detects liquidation-risk alerts and position changes, and answers Telegram questions through command mode or an optional AI analyst.
 
-Current MVP:
+## Current MVP
 
 - Monitor any Hyperliquid `0x` wallet.
 - Local web dashboard for account value, margin, PnL, open positions, liquidation price, and liquidation distance.
 - FastAPI backend proxy for Hyperliquid Info API.
-- SQLite snapshots, alerts, and position-change history.
+- SQLite snapshots, alerts, position changes, watchlist, and fills.
 - Position diff detection: opened, closed, increased, reduced, and flipped.
 - Alert cooldown to avoid repeated Telegram spam.
-- Telegram commands: `/status`, `/positions`, `/alerts`, `/changes`, `/top`.
+- Telegram commands for status, positions, alerts, changes, fills, reports, and wallet management.
 - Optional Telegram natural-language analyst through Groq's OpenAI-compatible API.
-- Database-backed watchlist with wallet names and tags.
 - Docker deployment skeleton.
 
 ## Quick Start
@@ -20,6 +19,7 @@ Current MVP:
 PowerShell:
 
 ```powershell
+cd C:\Users\hek\Documents\Hyperdress.AI
 .\scripts\dev.ps1
 ```
 
@@ -29,20 +29,30 @@ macOS/Linux:
 ./scripts/dev.sh
 ```
 
-Manual start:
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-```
-
 Open:
 
 ```text
 http://127.0.0.1:8000
+```
+
+## Checks
+
+Run local checks without starting the server:
+
+```powershell
+.\scripts\check.ps1
+```
+
+Run smoke checks against a running server:
+
+```powershell
+.\scripts\smoke.ps1
+```
+
+Run full smoke checks for one wallet:
+
+```powershell
+.\scripts\smoke.ps1 -Wallet 0x0ddf9bae2af4b874b96d287a5ad42eb47138a902
 ```
 
 ## Configuration
@@ -74,24 +84,21 @@ TELEGRAM_CHAT_ID=your_chat_id
 TELEGRAM_PROXY_URL=http://127.0.0.1:7897
 ```
 
-`TELEGRAM_PROXY_URL` is optional, but useful when `api.telegram.org` is not reachable directly.
-
 After the service starts, the bot supports:
 
 - `/status`: monitor configuration and AI status.
 - `/positions <wallet>`: refresh and show one wallet's current positions.
-- `/positions`: show the latest configured or stored wallet snapshot.
 - `/alerts`: recent risk alerts.
 - `/changes`: recent position changes.
-- `/fills <wallet>`: Chinese compact grouped fills report for one wallet, defaulting to 10 fills.
-- `/refreshfills <wallet>`: fetch fresh `userFills` from Hyperliquid and save new fills.
+- `/fills <wallet>`: Chinese compact grouped fills report, defaulting to 10 fills.
+- `/refreshfills <wallet>`: fetch fresh Hyperliquid `userFills` and save new fills.
 - `/top`: wallet with the largest latest position value among stored snapshots.
-- `/summary <wallet> [hours]`: stored snapshot summary, risk overview, and trend-readiness for one wallet.
-- `/report <wallet> [hours]`: formatted Chinese risk report with rounded money and percentage values.
+- `/summary <wallet> [hours]`: stored snapshot summary and trend-readiness.
+- `/report <wallet> [hours]`: formatted risk report.
 - `/wallets`: database watchlist.
 - `/addwallet <wallet> <name>`: add or update a watched wallet.
 - `/removewallet <wallet>`: remove a watched wallet.
-- `/refreshwallets`: immediately refresh every configured and database watchlist wallet.
+- `/refreshwallets`: refresh every active wallet.
 
 ## AI Analyst
 
@@ -105,7 +112,7 @@ GROQ_BASE_URL=https://api.groq.com/openai/v1
 AI_PROXY_URL=
 ```
 
-When `AI_PROVIDER=groq` and `GROQ_API_KEY` is set, normal Telegram text follows this flow:
+When enabled, normal Telegram text follows this flow:
 
 ```text
 user natural language -> AI intent/tool selection -> SQLite/Hyperliquid tools -> AI final answer
@@ -117,7 +124,8 @@ Example Telegram questions:
 - `最近变化`
 - `看看最近仓位价值最大的地址`
 - `查一下 0x... 的仓位`
-- `这个地址有没有接近强平 0x...`
+- `查看 0x... 最近10条成交`
+- `用报告格式分析 0x... 的风险`
 
 If the AI call fails or is disabled, the bot falls back to keyword command routing.
 
@@ -126,25 +134,16 @@ If the AI call fails or is disabled, the bot falls back to keyword command routi
 - `GET /api/health`
 - `POST /api/info`: raw Hyperliquid `clearinghouseState` proxy.
 - `POST /api/state`: normalized account snapshot, alerts, and position changes persisted to SQLite.
-- `GET /api/alerts`: recent alert events.
-- `GET /api/position-changes`: recent position-change events.
 - `POST /api/fills`: fetch and store Hyperliquid `userFills`.
 - `GET /api/fills`: recent stored fills, optionally filtered by `user`.
+- `GET /api/alerts`: recent alert events.
+- `GET /api/position-changes`: recent position-change events.
 - `GET /api/wallets/{user}/summary`: stored snapshot summary for one wallet.
 - `GET /api/wallets/{user}/position-changes`: recent position changes for one wallet.
 - `GET /api/watched-wallets`: list database watchlist wallets.
 - `POST /api/watched-wallets`: add or update a wallet.
-- `POST /api/watched-wallets/refresh`: immediately collect fresh Hyperliquid snapshots for all active wallets.
+- `POST /api/watched-wallets/refresh`: refresh all active wallets.
 - `DELETE /api/watched-wallets/{user}`: remove a wallet.
-
-Request body for `POST /api/info` and `POST /api/state`:
-
-```json
-{
-  "user": "0x...",
-  "endpoint": "https://api.hyperliquid.xyz/info"
-}
-```
 
 ## Docker
 
@@ -163,6 +162,7 @@ app/
   main.py          FastAPI entrypoint and monitor loop
   models.py        data models
   notifier.py      Telegram alert sender
+  reporting.py     compact Telegram/AI report formatting
   risk.py          risk and position-diff logic
   storage.py       SQLite storage
   telegram_bot.py  Telegram commands and natural-language entrypoint
@@ -170,4 +170,8 @@ public/
   index.html       local monitor dashboard
   app.js           frontend polling and rendering
   styles.css       page styles
+scripts/
+  dev.ps1          create env, install deps, start server
+  check.ps1        local compile/import/storage/report checks
+  smoke.ps1        HTTP smoke checks against a running server
 ```
