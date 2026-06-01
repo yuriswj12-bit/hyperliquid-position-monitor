@@ -12,6 +12,7 @@ Current MVP:
 - Alert cooldown to avoid repeated Telegram spam.
 - Telegram commands: `/status`, `/positions`, `/alerts`, `/changes`, `/top`.
 - Optional Telegram natural-language analyst through Groq's OpenAI-compatible API.
+- Database-backed watchlist with wallet names and tags.
 - Docker deployment skeleton.
 
 ## Quick Start
@@ -83,6 +84,9 @@ After the service starts, the bot supports:
 - `/alerts`: recent risk alerts.
 - `/changes`: recent position changes.
 - `/top`: wallet with the largest latest position value among stored snapshots.
+- `/wallets`: database watchlist.
+- `/addwallet <wallet> <name>`: add or update a watched wallet.
+- `/removewallet <wallet>`: remove a watched wallet.
 
 ## AI Analyst
 
@@ -119,6 +123,9 @@ If the AI call fails or is disabled, the bot falls back to keyword command routi
 - `POST /api/state`: normalized account snapshot, alerts, and position changes persisted to SQLite.
 - `GET /api/alerts`: recent alert events.
 - `GET /api/position-changes`: recent position-change events.
+- `GET /api/watched-wallets`: list database watchlist wallets.
+- `POST /api/watched-wallets`: add or update a wallet.
+- `DELETE /api/watched-wallets/{user}`: remove a wallet.
 
 Request body for `POST /api/info` and `POST /api/state`:
 
