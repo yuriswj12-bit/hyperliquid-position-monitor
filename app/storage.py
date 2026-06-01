@@ -91,9 +91,13 @@ class Storage:
             db.row_factory = aiosqlite.Row
             cursor = await db.execute(
                 """
-                select user, name, tags, notes, created_at, updated_at
-                from watched_wallets
-                order by coalesce(name, user), user
+                select w.user, w.name, w.tags, w.notes, w.created_at, w.updated_at,
+                       count(s.id) as snapshot_count,
+                       max(s.captured_at) as latest_snapshot_at
+                from watched_wallets w
+                left join snapshots s on s.user = w.user
+                group by w.user, w.name, w.tags, w.notes, w.created_at, w.updated_at
+                order by coalesce(w.name, w.user), w.user
                 """
             )
             rows = await cursor.fetchall()
@@ -129,9 +133,13 @@ class Storage:
             db.row_factory = aiosqlite.Row
             cursor = await db.execute(
                 """
-                select user, name, tags, notes, created_at, updated_at
-                from watched_wallets
-                where user = ?
+                select w.user, w.name, w.tags, w.notes, w.created_at, w.updated_at,
+                       count(s.id) as snapshot_count,
+                       max(s.captured_at) as latest_snapshot_at
+                from watched_wallets w
+                left join snapshots s on s.user = w.user
+                where w.user = ?
+                group by w.user, w.name, w.tags, w.notes, w.created_at, w.updated_at
                 """,
                 (user,),
             )
