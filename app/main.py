@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from pathlib import Path
 from contextlib import asynccontextmanager
 
@@ -17,13 +18,25 @@ from app.storage import Storage
 from app.telegram_bot import TelegramCommandBot
 
 settings = get_settings()
+logging.basicConfig(
+    level=getattr(logging, settings.log_level.upper(), logging.INFO),
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger = logging.getLogger("hyperdress.main")
 storage = Storage(settings.database_path)
 client = HyperliquidClient(settings)
 notifier = TelegramNotifier(settings)
 PUBLIC_DIR = Path("public").resolve()
+runtime_status = {
+    "monitor_running": False,
+    "last_monitor_ok_at": None,
+    "last_monitor_error_at": None,
+    "last_monitor_error": None,
+}
 
 
 async def process_wallet_state(user: str, endpoint: str | None = None, dex: str | None = None) -> dict:
+    logger.info("refreshing wallet state user=%s", user)
     raw = await client.clearinghouse_state(user, endpoint, dex)
     previous = await storage.latest_snapshot(user, settings.liquidation_alert_percent)
     snapshot = normalize_snapshot(user, raw, settings.liquidation_alert_percent)
@@ -46,6 +59,7 @@ async def process_wallet_state(user: str, endpoint: str | None = None, dex: str 
 
 
 async def process_wallet_fills(user: str, endpoint: str | None = None, aggregate_by_time: bool = True) -> dict:
+    logger.info("refreshing wallet fills user=%s", user)
     fills = await client.user_fills(user, endpoint, aggregate_by_time)
     saved_count = await storage.save_fills(user, fills)
     return {
@@ -58,6 +72,7 @@ async def process_wallet_fills(user: str, endpoint: str | None = None, aggregate
 
 async def refresh_active_wallets() -> dict:
     wallets = await storage.active_wallet_addresses(settings.watched_wallets)
+    logger.info("refreshing active wallets count=%s", len(wallets))
     results = []
     for wallet in wallets:
         try:
@@ -74,6 +89,7 @@ async def refresh_active_wallets() -> dict:
                 }
             )
         except Exception as error:
+            logger.warning("active wallet refresh failed user=%s error=%s", wallet, error)
             results.append({"user": wallet, "ok": False, "error": str(error)})
     return {
         "wallet_count": len(wallets),
@@ -88,12 +104,18 @@ command_bot = TelegramCommandBot(settings, storage, process_wallet_state, proces
 
 
 async def monitor_loop() -> None:
+    runtime_status["monitor_running"] = True
+    logger.info("monitor loop started interval_seconds=%s", settings.monitor_interval_seconds)
     while True:
         for wallet in await storage.active_wallet_addresses(settings.watched_wallets):
             try:
                 await process_wallet_state(wallet)
+                runtime_status["last_monitor_ok_at"] = current_utc_iso()
+                runtime_status["last_monitor_error"] = None
             except Exception as error:
-                print(f"monitor error for {wallet}: {error}")
+                runtime_status["last_monitor_error_at"] = current_utc_iso()
+                runtime_status["last_monitor_error"] = f"{wallet}: {error}"
+                logger.exception("monitor error for user=%s", wallet)
         await asyncio.sleep(settings.monitor_interval_seconds)
 
 
@@ -106,6 +128,7 @@ async def lifespan(_: FastAPI):
     await command_bot.stop()
     if task:
         task.cancel()
+        runtime_status["monitor_running"] = False
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
@@ -120,7 +143,13 @@ app.add_middleware(
 
 @app.get("/api/health")
 async def health() -> dict:
-    return {"ok": True, "app": settings.app_name}
+    return {
+        "ok": True,
+        "app": settings.app_name,
+        "monitor": runtime_status,
+        "telegram_enabled": command_bot.enabled,
+        "ai_enabled": ai_analyst.enabled,
+    }
 
 
 @app.post("/api/info")
@@ -212,3 +241,9 @@ async def web_app(path: str) -> FileResponse:
             return FileResponse(requested, headers={"cache-control": "no-store"})
         raise HTTPException(status_code=404, detail="Not found")
     return FileResponse("public/index.html", headers={"cache-control": "no-store"})
+
+
+def current_utc_iso() -> str:
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc).isoformat()
