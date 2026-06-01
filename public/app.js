@@ -28,6 +28,7 @@ const els = {
   watchName: document.querySelector("#watchNameInput"),
   watchTags: document.querySelector("#watchTagsInput"),
   addWallet: document.querySelector("#addWalletButton"),
+  refreshWallets: document.querySelector("#refreshWalletsButton"),
   reloadWallets: document.querySelector("#reloadWalletsButton"),
   watchlist: document.querySelector("#watchlist"),
 };
@@ -155,6 +156,17 @@ async function deleteWatchWallet(user) {
   await loadWatchlist();
 }
 
+async function refreshWatchlistData() {
+  setStatus("Syncing");
+  const response = await fetch("/api/watched-wallets/refresh", { method: "POST" });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.detail || `Request failed with ${response.status}`);
+  }
+  setStatus(`Refreshed ${payload.success_count}/${payload.wallet_count}`, payload.failure_count ? "error" : "live");
+  await loadWatchlist();
+}
+
 function liquidationDistance(position) {
   const liq = toNumber(position.liquidationPx);
   const currentValue = toNumber(position.positionValue);
@@ -262,11 +274,14 @@ function renderWatchlist() {
       const label = escapeHtml(wallet.name || shortWallet(wallet.user));
       const tags = wallet.tags ? `<span class="tag">${escapeHtml(wallet.tags)}</span>` : "";
       const user = escapeHtml(wallet.user);
+      const snapshotCount = Number(wallet.snapshot_count || 0);
+      const latest = wallet.latest_snapshot_at ? new Date(wallet.latest_snapshot_at).toLocaleString() : "Never sampled";
       return `
         <div class="watch-item">
           <div>
             <strong>${label}</strong>
             <span>${escapeHtml(shortWallet(wallet.user))} ${tags}</span>
+            <span>${snapshotCount} snapshots · ${escapeHtml(latest)}</span>
           </div>
           <div class="watch-actions">
             <button type="button" data-use-wallet="${user}">Use</button>
@@ -350,6 +365,12 @@ els.reloadWallets.addEventListener("click", () => {
   loadWatchlist().catch((error) => {
     setStatus("Error", "error");
     els.watchlist.innerHTML = `<div class="alert-item"><strong>Load failed</strong><span>${error.message}</span></div>`;
+  });
+});
+els.refreshWallets.addEventListener("click", () => {
+  refreshWatchlistData().catch((error) => {
+    setStatus("Error", "error");
+    els.watchlist.innerHTML = `<div class="alert-item"><strong>Refresh failed</strong><span>${error.message}</span></div>`;
   });
 });
 els.watchlist.addEventListener("click", (event) => {
