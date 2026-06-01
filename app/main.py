@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.ai_analyst import AIAnalyst
 from app.config import get_settings
 from app.hyperliquid import HyperliquidClient
 from app.models import HyperliquidStateRequest
@@ -44,7 +45,8 @@ async def process_wallet_state(user: str, endpoint: str | None = None, dex: str 
     }
 
 
-command_bot = TelegramCommandBot(settings, storage, process_wallet_state)
+ai_analyst = AIAnalyst(settings, storage, process_wallet_state)
+command_bot = TelegramCommandBot(settings, storage, process_wallet_state, ai_analyst)
 
 
 async def monitor_loop() -> None:
