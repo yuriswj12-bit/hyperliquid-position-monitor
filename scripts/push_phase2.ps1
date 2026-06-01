@@ -2,13 +2,14 @@ $ErrorActionPreference = "Stop"
 
 $repo = "yuriswj12-bit/hyperliquid-position-monitor"
 $branch = "codex/mvp-hyperdress-monitor"
-$message = "Add wallet risk activity summary"
+$message = "Add formatted wallet risk reports"
 $files = @(
   ".env.example",
   "README.md",
   "PRODUCT_SPEC.md",
   "app/config.py",
   "app/ai_analyst.py",
+  "app/reporting.py",
   "app/models.py",
   "app/risk.py",
   "app/storage.py",
