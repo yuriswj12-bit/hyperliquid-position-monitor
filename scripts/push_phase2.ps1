@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 
 $repo = "yuriswj12-bit/hyperliquid-position-monitor"
 $branch = "codex/mvp-hyperdress-monitor"
-$message = "Group compact fills reports"
+$message = "Localize fills reports"
 $files = @(
   ".env.example",
   "README.md",
