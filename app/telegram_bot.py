@@ -5,7 +5,7 @@ from telegram import Update
 from telegram.ext import Application, ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 
 from app.config import Settings
-from app.models import AccountSnapshot
+from app.models import AccountSnapshot, WatchedWalletRequest
 from app.storage import Storage
 
 RefreshCallback = Callable[[str], Awaitable[dict]]
@@ -52,6 +52,9 @@ class TelegramCommandBot:
             self.application.add_handler(CommandHandler("alerts", self.alerts_command))
             self.application.add_handler(CommandHandler("changes", self.changes_command))
             self.application.add_handler(CommandHandler("top", self.top_command))
+            self.application.add_handler(CommandHandler("wallets", self.wallets_command))
+            self.application.add_handler(CommandHandler("addwallet", self.add_wallet_command))
+            self.application.add_handler(CommandHandler("removewallet", self.remove_wallet_command))
             self.application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.text_message))
 
             await self.application.initialize()
@@ -81,7 +84,10 @@ class TelegramCommandBot:
             "/positions <wallet>\n"
             "/alerts\n"
             "/changes\n"
-            "/top\n\n"
+            "/top\n"
+            "/wallets\n"
+            "/addwallet <wallet> <name>\n"
+            "/removewallet <wallet>\n\n"
             "也可以直接用中文问，例如：\n"
             "最近告警\n"
             "最近变化\n"
@@ -90,20 +96,57 @@ class TelegramCommandBot:
         )
 
     async def status_command(self, update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
-        watched = self.settings.watched_wallets
+        configured = self.settings.watched_wallets
+        database_wallets = await self.storage.list_watched_wallets()
         text = [
             "Hyperdress.AI status",
-            f"Watched wallets: {len(watched)}",
+            f"Configured wallets: {len(configured)}",
+            f"Database watchlist: {len(database_wallets)}",
             f"Refresh interval: {self.settings.monitor_interval_seconds}s",
             f"Liquidation alert: {self.settings.liquidation_alert_percent:g}%",
             f"Position change alert: {self.settings.position_change_alert_percent:g}%",
             f"Alert cooldown: {self.settings.alert_cooldown_seconds}s",
             f"AI analyst: {'enabled' if self.analyst and self.analyst.enabled else 'disabled'}",
         ]
-        if watched:
+        if database_wallets:
             text.append("")
-            text.extend(short_wallet(wallet) for wallet in watched[:10])
+            text.extend(format_wallet_label(wallet) for wallet in database_wallets[:10])
+        elif configured:
+            text.append("")
+            text.extend(short_wallet(wallet) for wallet in configured[:10])
         await self.reply(update, "\n".join(text))
+
+    async def wallets_command(self, update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+        wallets = await self.storage.list_watched_wallets()
+        if not wallets:
+            await self.reply(update, "No database watchlist wallets yet. Use /addwallet 0x... name")
+            return
+
+        lines = ["Watchlist"]
+        for wallet in wallets[:30]:
+            lines.append(f"- {format_wallet_label(wallet)}")
+        await self.reply(update, "\n".join(lines))
+
+    async def add_wallet_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not context.args or not is_wallet(context.args[0]):
+            await self.reply(update, "Usage: /addwallet 0x... name")
+            return
+
+        user = context.args[0]
+        name = " ".join(context.args[1:]).strip() or None
+        wallet = await self.storage.upsert_watched_wallet(WatchedWalletRequest(user=user, name=name))
+        await self.reply(update, f"Added to watchlist: {format_wallet_label(wallet)}")
+
+    async def remove_wallet_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not context.args or not is_wallet(context.args[0]):
+            await self.reply(update, "Usage: /removewallet 0x...")
+            return
+
+        deleted = await self.storage.delete_watched_wallet(context.args[0])
+        if deleted:
+            await self.reply(update, f"Removed from watchlist: {short_wallet(context.args[0])}")
+        else:
+            await self.reply(update, "Wallet is not in the database watchlist.")
 
     async def positions_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         wallet = context.args[0] if context.args else None
@@ -118,14 +161,21 @@ class TelegramCommandBot:
                 await self.reply(update, f"Failed to refresh positions: {error}")
                 return
         else:
-            wallet = self.settings.watched_wallets[0] if self.settings.watched_wallets else None
+            database_wallets = await self.storage.list_watched_wallets()
+            wallet = (
+                database_wallets[0]["user"]
+                if database_wallets
+                else self.settings.watched_wallets[0]
+                if self.settings.watched_wallets
+                else None
+            )
             snapshot = (
                 await self.storage.latest_snapshot(wallet, self.settings.liquidation_alert_percent)
                 if wallet
                 else await self.storage.latest_any_snapshot(self.settings.liquidation_alert_percent)
             )
             if snapshot is None:
-                await self.reply(update, "No snapshot yet. Use /positions 0x... first or configure WATCHED_WALLETS.")
+                await self.reply(update, "No snapshot yet. Use /positions 0x... first or add a wallet to the watchlist.")
                 return
 
         await self.reply(update, format_positions(snapshot))
@@ -200,6 +250,10 @@ class TelegramCommandBot:
             await self.status_command(update, context)
             return
 
+        if any(keyword in lowered for keyword in ["watchlist", "wallets", "地址列表", "监控列表", "钱包列表"]):
+            await self.wallets_command(update, context)
+            return
+
         if any(keyword in lowered for keyword in ["最大", "top", "largest"]) and any(
             keyword in lowered for keyword in ["仓位", "position", "地址", "钱包", "wallet"]
         ):
@@ -227,6 +281,7 @@ class TelegramCommandBot:
             "- 最近告警\n"
             "- 最近变化\n"
             "- 查仓位 0x...\n"
+            "- 监控列表\n"
             "- 状态",
         )
 
@@ -254,6 +309,12 @@ def first_wallet(text: str) -> str | None:
 
 def short_wallet(wallet: str) -> str:
     return f"{wallet[:6]}...{wallet[-4:]}" if len(wallet) > 12 else wallet
+
+
+def format_wallet_label(wallet: dict) -> str:
+    label = wallet.get("name") or short_wallet(wallet["user"])
+    tags = f" [{wallet['tags']}]" if wallet.get("tags") else ""
+    return f"{label}{tags}: {short_wallet(wallet['user'])}"
 
 
 def parse_limit(args: list[str], default: int, maximum: int) -> int:
