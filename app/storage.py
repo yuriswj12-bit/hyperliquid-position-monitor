@@ -84,6 +84,29 @@ class Storage:
                 )
                 """
             )
+            await db.execute(
+                """
+                create table if not exists fills (
+                    id integer primary key autoincrement,
+                    user text not null,
+                    fill_key text not null unique,
+                    coin text,
+                    side text,
+                    px real,
+                    sz real,
+                    closed_pnl real,
+                    fee real,
+                    crossed integer,
+                    dir text,
+                    hash text,
+                    oid integer,
+                    time integer,
+                    raw_json text not null,
+                    saved_at text not null
+                )
+                """
+            )
+            await db.execute("create index if not exists idx_fills_user_time on fills (user, time)")
             await db.commit()
 
     async def list_watched_wallets(self) -> list[dict]:
@@ -155,6 +178,74 @@ class Storage:
     async def active_wallet_addresses(self, configured_wallets: list[str]) -> list[str]:
         database_wallets = [wallet["user"] for wallet in await self.list_watched_wallets()]
         return list(dict.fromkeys([*configured_wallets, *database_wallets]))
+
+    async def save_fills(self, user: str, fills: list[dict]) -> int:
+        if not fills:
+            return 0
+        now = datetime.now(timezone.utc).isoformat()
+        rows = []
+        for fill in fills:
+            rows.append(
+                (
+                    user,
+                    fill_key(fill),
+                    fill.get("coin"),
+                    fill.get("side"),
+                    float_or_none(fill.get("px")),
+                    float_or_none(fill.get("sz")),
+                    float_or_none(fill.get("closedPnl")),
+                    float_or_none(fill.get("fee")),
+                    1 if fill.get("crossed") else 0,
+                    fill.get("dir"),
+                    fill.get("hash"),
+                    int_or_none(fill.get("oid")),
+                    int_or_none(fill.get("time")),
+                    json.dumps(fill),
+                    now,
+                )
+            )
+
+        async with aiosqlite.connect(self.database_path) as db:
+            cursor = await db.executemany(
+                """
+                insert or ignore into fills (
+                    user, fill_key, coin, side, px, sz, closed_pnl, fee,
+                    crossed, dir, hash, oid, time, raw_json, saved_at
+                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                rows,
+            )
+            await db.commit()
+            return cursor.rowcount
+
+    async def recent_fills(self, user: str | None = None, limit: int = 50) -> list[dict]:
+        async with aiosqlite.connect(self.database_path) as db:
+            db.row_factory = aiosqlite.Row
+            if user:
+                cursor = await db.execute(
+                    """
+                    select user, coin, side, px, sz, closed_pnl, fee, crossed,
+                           dir, hash, oid, time, raw_json, saved_at
+                    from fills
+                    where user = ?
+                    order by coalesce(time, 0) desc, id desc
+                    limit ?
+                    """,
+                    (user, max(1, min(limit, 200))),
+                )
+            else:
+                cursor = await db.execute(
+                    """
+                    select user, coin, side, px, sz, closed_pnl, fee, crossed,
+                           dir, hash, oid, time, raw_json, saved_at
+                    from fills
+                    order by coalesce(time, 0) desc, id desc
+                    limit ?
+                    """,
+                    (max(1, min(limit, 200)),),
+                )
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
 
     async def _ensure_column(self, db: aiosqlite.Connection, table: str, column: str, definition: str) -> None:
         cursor = await db.execute(f"pragma table_info({table})")
@@ -517,3 +608,25 @@ def float_or_none(value: object) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def int_or_none(value: object) -> int | None:
+    try:
+        if value in (None, ""):
+            return None
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def fill_key(fill: dict) -> str:
+    parts = [
+        str(fill.get("hash") or ""),
+        str(fill.get("oid") or ""),
+        str(fill.get("time") or ""),
+        str(fill.get("coin") or ""),
+        str(fill.get("side") or ""),
+        str(fill.get("px") or ""),
+        str(fill.get("sz") or ""),
+    ]
+    return "|".join(parts)
