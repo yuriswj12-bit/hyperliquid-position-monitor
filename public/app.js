@@ -312,6 +312,8 @@ function renderWalletSummary(summary) {
   }
 
   const deltas = summary.deltas || {};
+  const risk = summary.risk || {};
+  const nearest = risk.nearest_liquidation_position;
   const deltaBlock = summary.data_sufficient
     ? `
       <div class="summary-deltas">
@@ -335,6 +337,14 @@ function renderWalletSummary(summary) {
         <span>Position ${money(latest.total_position_value)}</span>
         <span>PnL ${money(latest.unrealized_pnl)}</span>
         <span>Open positions ${latest.position_count}</span>
+        <span>Recent changes ${summary.recent_change_count || 0}</span>
+      </div>
+      <div class="risk-line">
+        ${
+          nearest
+            ? `Nearest liquidation: ${escapeHtml(nearest.coin)} ${escapeHtml(nearest.side)} ${percent(nearest.distance_percent)}`
+            : "No open position liquidation risk."
+        }
       </div>
       ${deltaBlock}
     </div>
