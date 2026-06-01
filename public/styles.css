@@ -158,6 +158,111 @@ h2 {
   background: #35444d;
 }
 
+.ghost-button {
+  height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ghost-button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.watchlist-panel {
+  margin-top: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.watchlist-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 58px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.watchlist-head span {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.watchlist-form {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.2fr) minmax(180px, 0.8fr) minmax(180px, 0.8fr) 120px;
+  gap: 12px;
+  align-items: end;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.watchlist {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px 16px;
+}
+
+.watch-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfd;
+  padding: 12px;
+}
+
+.watch-item strong,
+.watch-item span {
+  display: block;
+}
+
+.watch-item span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.tag {
+  display: inline-block;
+  margin-left: 6px;
+  color: var(--accent) !important;
+  font-weight: 700;
+}
+
+.watch-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.watch-actions button {
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.watch-actions button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -337,6 +442,10 @@ td {
     grid-template-columns: 1fr 1fr;
   }
 
+  .watchlist-form {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .summary-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -362,8 +471,14 @@ td {
   }
 
   .control-panel,
-  .summary-grid {
+  .summary-grid,
+  .watchlist-form {
     grid-template-columns: 1fr;
+  }
+
+  .watch-item {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .metric {
