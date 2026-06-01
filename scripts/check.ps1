@@ -10,6 +10,12 @@ Write-Host "Checking Python syntax..."
 Write-Host "Checking application import..."
 .\.venv\Scripts\python.exe -c "from app.main import app; print('import ok')"
 
+Write-Host "Running unit tests..."
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p "test_*.py"
+if ($LASTEXITCODE -ne 0) {
+  throw "unit tests failed"
+}
+
 Write-Host "Running storage/reporting checks..."
 @'
 import asyncio
