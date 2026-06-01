@@ -37,7 +37,7 @@ class AIAnalyst:
                     "For largest/top wallet questions, call get_top_wallet_by_position_value. "
                     "For watchlist/list monitored wallets questions, call list_watched_wallets. "
                     "For refresh/update all monitored wallets questions, call refresh_watched_wallets. "
-                    "For wallet history, trend, enough data, or summary questions with a wallet address, call get_wallet_summary. "
+                    "For wallet report, risk summary, history, trend, enough data, or summary questions with a wallet address, call get_wallet_summary. "
                     "For requests to add or remove monitored wallets, call add_watched_wallet or remove_watched_wallet. "
                     "For position questions with a wallet address, call refresh_wallet_state. "
                     "For position questions without a wallet address, call get_latest_positions. "
