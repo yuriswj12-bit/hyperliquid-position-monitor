@@ -136,6 +136,18 @@ async def changes(limit: int = 50) -> list[dict]:
     return await storage.recent_position_changes(limit)
 
 
+@app.get("/api/wallets/{user}/summary")
+async def wallet_summary(user: str, hours: int = 24) -> dict:
+    request = WalletRequest(user=user)
+    return await storage.wallet_summary(request.user, hours)
+
+
+@app.get("/api/wallets/{user}/position-changes")
+async def wallet_position_changes(user: str, limit: int = 20) -> list[dict]:
+    request = WalletRequest(user=user)
+    return await storage.wallet_position_changes(request.user, limit)
+
+
 @app.get("/api/watched-wallets")
 async def watched_wallets() -> list[dict]:
     return await storage.list_watched_wallets()
