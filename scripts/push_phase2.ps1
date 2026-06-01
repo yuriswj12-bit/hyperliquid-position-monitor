@@ -27,7 +27,8 @@ $files = @(
   "scripts/dev.sh",
   "scripts/push_phase2.ps1",
   "tests/test_risk.py",
-  "tests/test_reporting.py"
+  "tests/test_reporting.py",
+  "tests/test_telegram_formatting.py"
 )
 
 function Invoke-GhJson {
