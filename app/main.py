@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from app.ai_analyst import AIAnalyst
 from app.config import get_settings
 from app.hyperliquid import HyperliquidClient
-from app.models import HyperliquidStateRequest
+from app.models import HyperliquidStateRequest, WalletRequest, WatchedWalletRequest
 from app.notifier import TelegramNotifier
 from app.risk import liquidation_alerts, normalize_snapshot, position_changes
 from app.storage import Storage
@@ -51,7 +51,7 @@ command_bot = TelegramCommandBot(settings, storage, process_wallet_state, ai_ana
 
 async def monitor_loop() -> None:
     while True:
-        for wallet in settings.watched_wallets:
+        for wallet in await storage.active_wallet_addresses(settings.watched_wallets):
             try:
                 await process_wallet_state(wallet)
             except Exception as error:
@@ -62,7 +62,7 @@ async def monitor_loop() -> None:
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     await storage.init()
-    task = asyncio.create_task(monitor_loop()) if settings.watched_wallets else None
+    task = asyncio.create_task(monitor_loop())
     await command_bot.start()
     yield
     await command_bot.stop()
@@ -109,6 +109,25 @@ async def alerts(limit: int = 50) -> list[dict]:
 @app.get("/api/position-changes")
 async def changes(limit: int = 50) -> list[dict]:
     return await storage.recent_position_changes(limit)
+
+
+@app.get("/api/watched-wallets")
+async def watched_wallets() -> list[dict]:
+    return await storage.list_watched_wallets()
+
+
+@app.post("/api/watched-wallets")
+async def upsert_watched_wallet(request: WatchedWalletRequest) -> dict:
+    return await storage.upsert_watched_wallet(request)
+
+
+@app.delete("/api/watched-wallets/{user}")
+async def delete_watched_wallet(user: str) -> dict:
+    request = WalletRequest(user=user)
+    deleted = await storage.delete_watched_wallet(request.user)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Wallet is not in the watchlist")
+    return {"deleted": True, "user": request.user}
 
 
 app.mount("/assets", StaticFiles(directory="public"), name="assets")
