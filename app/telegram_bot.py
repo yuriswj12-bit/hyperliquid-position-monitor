@@ -10,6 +10,7 @@ from app.reporting import wallet_report
 from app.storage import Storage
 
 RefreshCallback = Callable[[str], Awaitable[dict]]
+FillsCallback = Callable[[str], Awaitable[dict]]
 
 
 class Analyst(Protocol):
@@ -25,11 +26,13 @@ class TelegramCommandBot:
         settings: Settings,
         storage: Storage,
         refresh_callback: RefreshCallback,
+        fills_callback: FillsCallback | None = None,
         analyst: Analyst | None = None,
     ) -> None:
         self.settings = settings
         self.storage = storage
         self.refresh_callback = refresh_callback
+        self.fills_callback = fills_callback
         self.analyst = analyst
         self.application: Application | None = None
 
@@ -52,6 +55,8 @@ class TelegramCommandBot:
             self.application.add_handler(CommandHandler("positions", self.positions_command))
             self.application.add_handler(CommandHandler("alerts", self.alerts_command))
             self.application.add_handler(CommandHandler("changes", self.changes_command))
+            self.application.add_handler(CommandHandler("fills", self.fills_command))
+            self.application.add_handler(CommandHandler("refreshfills", self.refresh_fills_command))
             self.application.add_handler(CommandHandler("top", self.top_command))
             self.application.add_handler(CommandHandler("summary", self.summary_command))
             self.application.add_handler(CommandHandler("report", self.report_command))
@@ -88,6 +93,8 @@ class TelegramCommandBot:
             "/positions <wallet>\n"
             "/alerts\n"
             "/changes\n"
+            "/fills <wallet>\n"
+            "/refreshfills <wallet>\n"
             "/top\n"
             "/summary <wallet> [hours]\n"
             "/report <wallet> [hours]\n"
@@ -133,6 +140,35 @@ class TelegramCommandBot:
         for wallet in wallets[:30]:
             lines.append(f"- {format_wallet_label(wallet)}")
         await self.reply(update, "\n".join(lines))
+
+    async def fills_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not context.args or not is_wallet(context.args[0]):
+            await self.reply(update, "Usage: /fills 0x... [limit]")
+            return
+
+        limit = parse_limit(context.args[1:], default=10, maximum=30)
+        fills = await self.storage.recent_fills(context.args[0], limit)
+        await self.reply(update, format_fills(context.args[0], fills))
+
+    async def refresh_fills_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not context.args or not is_wallet(context.args[0]):
+            await self.reply(update, "Usage: /refreshfills 0x...")
+            return
+        if not self.fills_callback:
+            await self.reply(update, "Fills refresh is not available.")
+            return
+
+        try:
+            result = await self.fills_callback(context.args[0])
+        except Exception as error:
+            await self.reply(update, f"Failed to refresh fills: {error}")
+            return
+        fills = await self.storage.recent_fills(context.args[0], 10)
+        await self.reply(
+            update,
+            f"Fetched {result['fetched_count']} fills, saved {result['saved_count']} new fills.\n\n"
+            f"{format_fills(context.args[0], fills)}",
+        )
 
     async def add_wallet_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not context.args or not is_wallet(context.args[0]):
@@ -458,5 +494,19 @@ def format_wallet_summary(summary: dict) -> str:
                 f"- Margin used: ${deltas['total_margin_used']:,.2f}",
                 f"- Unrealized PnL: ${deltas['unrealized_pnl']:,.2f}",
             ]
+        )
+    return "\n".join(lines)
+
+
+def format_fills(user: str, fills: list[dict]) -> str:
+    if not fills:
+        return f"No fills stored for {short_wallet(user)}. Try /refreshfills {user}"
+
+    lines = [f"Recent fills for {short_wallet(user)}"]
+    for fill in fills[:30]:
+        lines.append(
+            f"- {fill.get('coin') or '-'} {fill.get('side') or fill.get('dir') or '-'} "
+            f"sz {fill.get('sz') or 0:g} @ {fill.get('px') or 0:g}, "
+            f"pnl ${fill.get('closed_pnl') or 0:,.2f}, fee ${fill.get('fee') or 0:,.2f}"
         )
     return "\n".join(lines)
