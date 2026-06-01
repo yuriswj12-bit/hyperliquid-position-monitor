@@ -37,6 +37,7 @@ class AIAnalyst:
                     "For largest/top wallet questions, call get_top_wallet_by_position_value. "
                     "For watchlist/list monitored wallets questions, call list_watched_wallets. "
                     "For refresh/update all monitored wallets questions, call refresh_watched_wallets. "
+                    "For wallet history, trend, enough data, or summary questions with a wallet address, call get_wallet_summary. "
                     "For requests to add or remove monitored wallets, call add_watched_wallet or remove_watched_wallet. "
                     "For position questions with a wallet address, call refresh_wallet_state. "
                     "For position questions without a wallet address, call get_latest_positions. "
@@ -102,6 +103,20 @@ class AIAnalyst:
             return {"alerts": await self.storage.recent_alerts(limit_int(arguments.get("limit"), 10))}
         if name == "get_recent_changes":
             return {"changes": await self.storage.recent_position_changes(limit_int(arguments.get("limit"), 10))}
+        if name == "get_wallet_summary":
+            return {
+                "summary": await self.storage.wallet_summary(
+                    arguments["wallet"],
+                    limit_int(arguments.get("hours"), 24),
+                )
+            }
+        if name == "get_wallet_position_changes":
+            return {
+                "changes": await self.storage.wallet_position_changes(
+                    arguments["wallet"],
+                    limit_int(arguments.get("limit"), 20),
+                )
+            }
         if name == "get_top_wallet_by_position_value":
             return {"top_wallet": await self.storage.largest_position_value_wallet()}
         if name == "list_watched_wallets":
@@ -218,6 +233,36 @@ TOOL_SCHEMAS = [
                 "properties": {
                     "limit": {"type": "integer", "minimum": 1, "maximum": 50},
                 },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_wallet_summary",
+            "description": "Summarize one wallet's stored snapshot history over a time window and report whether there is enough data for trend analysis.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "wallet": {"type": "string", "description": "0x wallet address."},
+                    "hours": {"type": "integer", "minimum": 1, "maximum": 720, "description": "Lookback window in hours."},
+                },
+                "required": ["wallet"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_wallet_position_changes",
+            "description": "Get recent position changes for one wallet.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "wallet": {"type": "string", "description": "0x wallet address."},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 100},
+                },
+                "required": ["wallet"],
             },
         },
     },
