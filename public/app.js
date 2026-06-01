@@ -31,6 +31,7 @@ const els = {
   refreshWallets: document.querySelector("#refreshWalletsButton"),
   reloadWallets: document.querySelector("#reloadWalletsButton"),
   watchlist: document.querySelector("#watchlist"),
+  walletSummary: document.querySelector("#walletSummary"),
 };
 
 function toNumber(value) {
@@ -167,6 +168,15 @@ async function refreshWatchlistData() {
   await loadWatchlist();
 }
 
+async function loadWalletSummary(user, hours = 24) {
+  const response = await fetch(`/api/wallets/${encodeURIComponent(user)}/summary?hours=${hours}`);
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.detail || `Request failed with ${response.status}`);
+  }
+  renderWalletSummary(payload);
+}
+
 function liquidationDistance(position) {
   const liq = toNumber(position.liquidationPx);
   const currentValue = toNumber(position.positionValue);
@@ -285,12 +295,50 @@ function renderWatchlist() {
           </div>
           <div class="watch-actions">
             <button type="button" data-use-wallet="${user}">Use</button>
+            <button type="button" data-summary-wallet="${user}">Summary</button>
             <button type="button" data-delete-wallet="${user}">Delete</button>
           </div>
         </div>
       `;
     })
     .join("");
+}
+
+function renderWalletSummary(summary) {
+  const latest = summary.latest;
+  if (!latest) {
+    els.walletSummary.innerHTML = `<div class="quiet">No snapshots for ${escapeHtml(shortWallet(summary.user))}. Refresh this wallet first.</div>`;
+    return;
+  }
+
+  const deltas = summary.deltas || {};
+  const deltaBlock = summary.data_sufficient
+    ? `
+      <div class="summary-deltas">
+        <span>Account ${money(deltas.account_value)}</span>
+        <span>Position ${money(deltas.total_position_value)}</span>
+        <span>Margin ${money(deltas.total_margin_used)}</span>
+        <span>PnL ${money(deltas.unrealized_pnl)}</span>
+      </div>
+    `
+    : '<div class="quiet">Need at least 2 snapshots in the selected window for trend deltas.</div>';
+
+  els.walletSummary.innerHTML = `
+    <div class="summary-card">
+      <div>
+        <strong>${escapeHtml(shortWallet(summary.user))}</strong>
+        <span>${summary.snapshot_count} snapshots in ${summary.hours}h · ${summary.total_snapshot_count} total</span>
+      </div>
+      <div class="summary-grid-mini">
+        <span>Latest ${escapeHtml(new Date(latest.captured_at).toLocaleString())}</span>
+        <span>Account ${money(latest.account_value)}</span>
+        <span>Position ${money(latest.total_position_value)}</span>
+        <span>PnL ${money(latest.unrealized_pnl)}</span>
+        <span>Open positions ${latest.position_count}</span>
+      </div>
+      ${deltaBlock}
+    </div>
+  `;
 }
 
 function render(payload) {
@@ -375,9 +423,16 @@ els.refreshWallets.addEventListener("click", () => {
 });
 els.watchlist.addEventListener("click", (event) => {
   const useButton = event.target.closest("[data-use-wallet]");
+  const summaryButton = event.target.closest("[data-summary-wallet]");
   const deleteButton = event.target.closest("[data-delete-wallet]");
   if (useButton) {
     els.wallet.value = useButton.dataset.useWallet;
+  }
+  if (summaryButton) {
+    loadWalletSummary(summaryButton.dataset.summaryWallet).catch((error) => {
+      setStatus("Error", "error");
+      els.walletSummary.innerHTML = `<div class="alert-item"><strong>Summary failed</strong><span>${error.message}</span></div>`;
+    });
   }
   if (deleteButton) {
     deleteWatchWallet(deleteButton.dataset.deleteWallet).catch((error) => {
