@@ -61,6 +61,7 @@ Copy `.env.example` to `.env`, then fill the values you need:
 
 ```text
 HYPERLIQUID_INFO_URL=https://api.hyperliquid.xyz/info
+LOG_LEVEL=INFO
 MONITOR_INTERVAL_SECONDS=15
 LIQUIDATION_ALERT_PERCENT=12
 POSITION_CHANGE_ALERT_PERCENT=25
