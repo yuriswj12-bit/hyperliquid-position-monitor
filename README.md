@@ -84,6 +84,7 @@ After the service starts, the bot supports:
 - `/alerts`: recent risk alerts.
 - `/changes`: recent position changes.
 - `/top`: wallet with the largest latest position value among stored snapshots.
+- `/summary <wallet> [hours]`: stored snapshot summary and trend-readiness for one wallet.
 - `/wallets`: database watchlist.
 - `/addwallet <wallet> <name>`: add or update a watched wallet.
 - `/removewallet <wallet>`: remove a watched wallet.
@@ -124,6 +125,8 @@ If the AI call fails or is disabled, the bot falls back to keyword command routi
 - `POST /api/state`: normalized account snapshot, alerts, and position changes persisted to SQLite.
 - `GET /api/alerts`: recent alert events.
 - `GET /api/position-changes`: recent position-change events.
+- `GET /api/wallets/{user}/summary`: stored snapshot summary for one wallet.
+- `GET /api/wallets/{user}/position-changes`: recent position changes for one wallet.
 - `GET /api/watched-wallets`: list database watchlist wallets.
 - `POST /api/watched-wallets`: add or update a wallet.
 - `POST /api/watched-wallets/refresh`: immediately collect fresh Hyperliquid snapshots for all active wallets.
