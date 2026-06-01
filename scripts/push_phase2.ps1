@@ -5,8 +5,11 @@ $branch = "codex/mvp-hyperdress-monitor"
 $message = "Add release check scripts"
 $files = @(
   ".env.example",
+  "Dockerfile",
+  "docker-compose.yml",
   "README.md",
   "PRODUCT_SPEC.md",
+  "requirements.txt",
   "app/config.py",
   "app/ai_analyst.py",
   "app/reporting.py",
@@ -22,7 +25,9 @@ $files = @(
   "scripts/smoke.ps1",
   "scripts/dev.ps1",
   "scripts/dev.sh",
-  "scripts/push_phase2.ps1"
+  "scripts/push_phase2.ps1",
+  "tests/test_risk.py",
+  "tests/test_reporting.py"
 )
 
 function Invoke-GhJson {
