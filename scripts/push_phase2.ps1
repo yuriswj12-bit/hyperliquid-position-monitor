@@ -1,3 +1,7 @@
+param(
+  [string] $StartAt = ""
+)
+
 $ErrorActionPreference = "Stop"
 
 $repo = "yuriswj12-bit/hyperliquid-position-monitor"
@@ -5,13 +9,17 @@ $branch = "codex/mvp-hyperdress-monitor"
 $message = "Add release check scripts"
 $files = @(
   ".env.example",
+  ".gitignore",
   "Dockerfile",
   "docker-compose.yml",
   "README.md",
   "PRODUCT_SPEC.md",
   "requirements.txt",
+  "app/__init__.py",
   "app/config.py",
   "app/ai_analyst.py",
+  "app/hyperliquid.py",
+  "app/notifier.py",
   "app/reporting.py",
   "app/models.py",
   "app/risk.py",
@@ -40,19 +48,34 @@ function Invoke-GhJson {
     [string] $PayloadPath
   )
 
-  if ($PayloadPath) {
-    $output = gh @Args --input $PayloadPath
-    if ($LASTEXITCODE -ne 0) {
-      throw "gh failed: gh $($Args -join ' ') --input $PayloadPath"
+  $attempt = 1
+  $maxAttempts = 5
+  while ($attempt -le $maxAttempts) {
+    if ($PayloadPath) {
+      $output = gh @Args --input $PayloadPath
+      if ($LASTEXITCODE -eq 0) {
+        return $output | ConvertFrom-Json
+      }
     }
-    return $output | ConvertFrom-Json
+    else {
+      $output = gh @Args
+      if ($LASTEXITCODE -eq 0) {
+        return $output | ConvertFrom-Json
+      }
+    }
+
+    if ($attempt -lt $maxAttempts) {
+      $sleepSeconds = [Math]::Min(30, 3 * $attempt)
+      Write-Host "  gh failed, retrying in $sleepSeconds seconds ($attempt/$maxAttempts)..."
+      Start-Sleep -Seconds $sleepSeconds
+    }
+    $attempt += 1
   }
 
-  $output = gh @Args
-  if ($LASTEXITCODE -ne 0) {
-    throw "gh failed: gh $($Args -join ' ')"
+  if ($PayloadPath) {
+    throw "gh failed: gh $($Args -join ' ') --input $PayloadPath"
   }
-  return $output | ConvertFrom-Json
+  throw "gh failed: gh $($Args -join ' ')"
 }
 
 function Write-JsonNoBom {
@@ -72,7 +95,17 @@ function Write-JsonNoBom {
 Write-Host "Updating PR branch $branch file by file..."
 $encodedBranch = [System.Uri]::EscapeDataString($branch)
 
+$started = [string]::IsNullOrWhiteSpace($StartAt)
 foreach ($file in $files) {
+  if (-not $started) {
+    if ($file -eq $StartAt) {
+      $started = $true
+    }
+    else {
+      continue
+    }
+  }
+
   Write-Host "Updating $file..."
   $encodedPath = ($file -split "[\\/]" | ForEach-Object { [System.Uri]::EscapeDataString($_) }) -join "/"
   $current = $null
