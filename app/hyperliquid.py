@@ -23,3 +23,21 @@ class HyperliquidClient:
             response = await client.post(endpoint or self.settings.hyperliquid_info_url, json=payload)
             response.raise_for_status()
             return response.json()
+
+    async def user_fills(
+        self,
+        user: str,
+        endpoint: str | None = None,
+        aggregate_by_time: bool = True,
+    ) -> list[dict[str, Any]]:
+        payload: dict[str, Any] = {
+            "type": "userFills",
+            "user": user,
+            "aggregateByTime": aggregate_by_time,
+        }
+
+        async with httpx.AsyncClient(timeout=20) as client:
+            response = await client.post(endpoint or self.settings.hyperliquid_info_url, json=payload)
+            response.raise_for_status()
+            data = response.json()
+            return data if isinstance(data, list) else []
