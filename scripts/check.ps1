@@ -19,6 +19,7 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "Running storage/reporting checks..."
 @'
 import asyncio
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -48,11 +49,15 @@ async def main():
             ],
             "marginSummary": {},
         }
-        for value in [1000, 1100]:
+        captured_times = [
+            datetime.now(timezone.utc) - timedelta(minutes=5),
+            datetime.now(timezone.utc),
+        ]
+        for value, captured_at in zip([1000, 1100], captured_times):
             await storage.save_snapshot(
                 AccountSnapshot(
                     user=USER,
-                    captured_at="2026-06-01T00:00:00+00:00",
+                    captured_at=captured_at,
                     account_value=value,
                     total_position_value=73000,
                     total_margin_used=1000,
