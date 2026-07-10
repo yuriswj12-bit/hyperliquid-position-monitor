@@ -1,0 +1,71 @@
+from datetime import datetime
+from typing import Any
+
+from pydantic import BaseModel, Field
+
+
+class WalletRequest(BaseModel):
+    user: str = Field(pattern=r"^0x[a-fA-F0-9]{40}$")
+
+
+class WatchedWalletRequest(WalletRequest):
+    name: str | None = Field(default=None, max_length=80)
+    tags: str | None = Field(default=None, max_length=200)
+    notes: str | None = Field(default=None, max_length=500)
+
+
+class HyperliquidStateRequest(WalletRequest):
+    endpoint: str | None = None
+    dex: str | None = None
+
+
+class HyperliquidFillsRequest(WalletRequest):
+    endpoint: str | None = None
+    aggregate_by_time: bool = True
+
+
+class PositionRisk(BaseModel):
+    coin: str
+    side: str
+    size: float
+    entry_px: float | None
+    liquidation_px: float | None
+    position_value: float
+    unrealized_pnl: float
+    return_on_equity: float
+    liquidation_distance_percent: float | None
+    severity: str
+
+
+class AccountSnapshot(BaseModel):
+    user: str
+    captured_at: datetime
+    account_value: float
+    total_position_value: float
+    total_margin_used: float
+    withdrawable: float
+    unrealized_pnl: float
+    raw: dict[str, Any]
+    positions: list[PositionRisk]
+
+
+class AlertEvent(BaseModel):
+    user: str
+    coin: str
+    severity: str
+    message: str
+    created_at: datetime
+    fingerprint: str
+
+
+class PositionChange(BaseModel):
+    user: str
+    coin: str
+    change_type: str
+    previous_size: float
+    current_size: float
+    previous_value: float
+    current_value: float
+    change_percent: float | None
+    message: str
+    created_at: datetime
